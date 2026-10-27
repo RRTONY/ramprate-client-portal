@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { -webkit-text-size-adjust: 100%; }
+body { @apply bg-slate-50 text-ink antialiased; font-feature-settings: "cv11", "ss01"; }
+
+/* ---------- Accessibility ---------- */
+:focus-visible { outline: 2px solid #7E32D4; outline-offset: 2px; border-radius: 6px; }
+.skip-link { @apply sr-only; }
+.skip-link:focus { @apply not-sr-only fixed left-3 top-3 z-50 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white; }
+
+/* ---------- Motion (respects the "reduce motion" setting) ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fadeUp 0.35s ease-out both; }
+.fade-in-2 { animation: fadeUp 0.35s 0.06s ease-out both; }
+.fade-in-3 { animation: fadeUp 0.35s 0.12s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .fade-in, .fade-in-2, .fade-in-3 { animation: none; } }
+
+@layer components {
+  .card { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-slate-50; }
+  .btn-danger { @apply inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50; }
+  .input { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+  .label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600; }
+  /* Section headings: darker and slightly larger than before for easier reading */
+  .h-section { @apply mb-3 text-[13px] font-bold uppercase tracking-wide text-slate-600; }
+  /* Comfortable line length for paragraphs */
+  .prose-narrow { @apply max-w-[70ch] text-[15px] leading-relaxed; }
+  .page-section { @apply mb-8; }
+}
+
+/* ---------- Dark mode (toggle in the header; remembered per browser) ---------- */
+.dark body { background: #121116; color: #ececf1; }
+.dark .bg-white, .dark .card, .dark .btn-secondary, .dark .input { background-color: #1c1b22; color: #ececf1; }
+.dark .bg-white\/60 { background-color: rgba(28,27,34,.6); }
+.dark .bg-slate-50 { background-color: #15141a; }
+.dark .bg-slate-100 { background-color: #26252e; }
+.dark .bg-brand-50 { background-color: #2a1d45; }
+.dark .bg-amber-50 { background-color: #3a2c10; }
+.dark .bg-emerald-50 { background-color: #10321f; }
+.dark .bg-red-50 { background-color: #3a1616; }
+.dark .bg-blue-50 { background-color: #14284a; }
+.dark .border-slate-200, .dark .border-slate-100, .dark .border-slate-300, .dark .divide-slate-100 > * + * { border-color: #34333d; }
+.dark .text-ink, .dark .text-slate-900 { color: #ececf1; }
+.dark .text-slate-700, .dark .text-slate-600 { color: #c3c2cc; }
+.dark .text-slate-500 { color: #9a99a6; }
+.dark .text-brand-700 { color: #c9a4ff; }
+.dark .text-amber-900 { color: #ffd88a; }
+.dark .text-amber-800 { color: #ffd88a; }
+.dark .border-amber-300 { border-color: #7a5a18; }
+.dark .stroke-slate-200 { stroke: #34333d; }
+.dark .ring-white { --tw-ring-color: #1c1b22; }
+.dark .hover\:bg-slate-50:hover { background-color: #26252e; }
+.dark .bg-ink { background-color: #0b0b0e; }
+
+/* ---------- Print view (Print or save as PDF button on the progress page) ---------- */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .no-print, header, nav, footer, .btn, .btn-secondary { display: none !important; }
+  .card { box-shadow: none !important; break-inside: avoid; border-color: #ccc !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+}
+
+.dark .keep-light { background-color: #fff; color: #201F24; }
+.dark .keep-light .text-slate-600, .dark .keep-light .text-slate-700 { color: #475569; }
+.dark .bg-amber-100 { background-color: #4a3512; }
+.dark .bg-white\/70 { background-color: rgba(255,255,255,.06); }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-amber-700 { color: #fcd34d; }
+.dark .text-red-700 { color: #fca5a5; }
+.dark .text-brand-700 .text-slate-600 { color: inherit; }
+
+/* ---------- Interactive hero orbs, guidance and tour ---------- */
+@keyframes orbFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes orbIn { from { opacity: 0; transform: scale(.6) translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes orbRipple { from { transform: scale(.9); opacity: .7; } to { transform: scale(2.4); opacity: 0; } }
+@keyframes orbPress { 0% { transform: scale(1.12); } 40% { transform: scale(.9); } 100% { transform: scale(1.25); } }
+@keyframes orbPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.65); } 50% { box-shadow: 0 0 0 16px rgba(251,191,36,0); } }
+@keyframes orbSpin { to { transform: rotate(360deg); } }
+@keyframes nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+@keyframes tourPulse { 0%,100% { box-shadow: 0 0 0 3px rgba(164,84,255,.9), 0 0 0 8px rgba(164,84,255,.25); } 50% { box-shadow: 0 0 0 3px rgba(164,84,255,.9), 0 0 0 14px rgba(164,84,255,0); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+.orb-wrap { animation: orbIn .6s cubic-bezier(.2,.9,.3,1.2) both; }
+.orb-float { animation: orbFloat 5s ease-in-out infinite; }
+.orb { transition: transform .25s cubic-bezier(.2,.9,.3,1.3), box-shadow .25s, background-color .25s; }
+.orb:hover, .orb:focus-visible { transform: scale(1.14); background-color: rgba(255,255,255,.24); box-shadow: 0 0 0 1px rgba(255,255,255,.55), 0 14px 40px rgba(20,0,50,.45), 0 0 44px rgba(196,148,255,.55); }
+.orb.is-pressed { animation: orbPress .42s ease-out both; }
+.orb-ripple { position: absolute; inset: 0; border-radius: 9999px; border: 2px solid rgba(255,255,255,.85); pointer-events: none; animation: orbRipple .6s ease-out both; }
+.orb-attn { animation: orbPulse 2s ease-out infinite; }
+.orb-hint { opacity: 0; transform: translateY(-4px); transition: opacity .2s, transform .2s; }
+.group:hover .orb-hint, .group:focus-within .orb-hint { opacity: 1; transform: none; }
+.arrow-nudge { animation: nudge 1.4s ease-in-out infinite; }
+.next-card:hover .arrow-nudge, .next-card:focus-visible .arrow-nudge { animation-duration: .6s; }
+.tour-ring { position: fixed; z-index: 60; border-radius: 12px; pointer-events: none; animation: tourPulse 1.8s ease-in-out infinite; transition: all .3s ease; }
+.tour-pop { animation: popIn .25s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .orb-wrap, .orb-float, .orb-attn, .arrow-nudge, .tour-ring, .tour-pop, .orb.is-pressed { animation: none !important; }
+  .orb { transition: none; }
+  .orb-ripple { display: none; }
+}
+@media print { .tour-ring, .tour-pop { display: none !important; } }
