@@ -15,6 +15,16 @@ export async function requireProfile(): Promise<Profile> {
     .eq("id", user.id)
     .single();
   if (!profile) redirect("/login?error=no-profile");
+
+  // Repeats the middleware two-step check: a page rendered straight from a sign-in server
+  // action's redirect never passes through middleware.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") redirect("/auth/mfa");
+  if (
+    aal?.nextLevel === "aal1" &&
+    (profile.role !== "client" || process.env.REQUIRE_CLIENT_MFA === "true")
+  )
+    redirect("/auth/mfa?enroll=1");
   return profile as Profile;
 }
 

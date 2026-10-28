@@ -49,6 +49,39 @@ describe("requireProfile", () => {
     const profile = await requireProfile();
     assert.equal(profile.id, me.id);
   });
+
+  // Pages rendered straight from a sign-in action skip middleware, so this check must hold here too.
+  it("asks for the code when a factor is set up but not yet used", async () => {
+    signIn("admin");
+    db.aal = { currentLevel: "aal1", nextLevel: "aal2" };
+    assert.equal(await redirectOf(requireProfile()), "/auth/mfa");
+  });
+
+  it("sends staff and admins without a factor to set one up", async () => {
+    for (const role of ["staff", "admin"] as const) {
+      signIn(role);
+      db.aal = { currentLevel: "aal1", nextLevel: "aal1" };
+      assert.equal(await redirectOf(requireProfile()), "/auth/mfa?enroll=1");
+    }
+  });
+
+  it("lets clients without a factor in unless two-step is required for everyone", async () => {
+    signIn("client");
+    db.aal = { currentLevel: "aal1", nextLevel: "aal1" };
+    assert.equal((await requireProfile()).role, "client");
+    process.env.REQUIRE_CLIENT_MFA = "true";
+    try {
+      assert.equal(await redirectOf(requireProfile()), "/auth/mfa?enroll=1");
+    } finally {
+      delete process.env.REQUIRE_CLIENT_MFA;
+    }
+  });
+
+  it("lets a user who entered the code through", async () => {
+    signIn("admin");
+    db.aal = { currentLevel: "aal2", nextLevel: "aal2" };
+    assert.equal((await requireProfile()).role, "admin");
+  });
 });
 
 describe("requireStaff", () => {
