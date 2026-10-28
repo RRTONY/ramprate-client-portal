@@ -74,6 +74,46 @@ Turn on backups in Supabase (Project Settings > Database > Backups). Paid plans 
 
 Before the first client, work through `docs/TEST-PLAN.md`.
 
+## Automated tests
+
+`npm test` runs every test in `tests/` with Node's built-in test runner (Node 22.18 or newer, no extra packages). It takes about a second and needs no database, keys or network.
+
+- `tests/auth.test.ts`: sign-in checks, who can manage which client, audit log writing, readiness, client notifications.
+- `tests/middleware.test.ts`: public pages, login redirects, two-step sign-in rules.
+- `tests/admin-actions.test.ts`, `tests/query-actions.test.ts`: every server action. Each one is checked for refusing signed-out users, clients and unassigned staff before changing anything, plus its own rules (input checks, audit entry, Sam CC, upload path and size checks).
+- `tests/routes.test.ts`: document download (60 second signed links), weekly digest (secret required), invite and reset links, sign out.
+- `tests/format.test.ts`, `tests/email.test.ts`: Pacific Time helpers and email content.
+
+These use in-memory stand-ins for Supabase and Next.js (`tests/support/`), so they do **not** prove row level security. Email is captured, never sent.
+
+**Database security tests** (`tests/rls/`) run against a real Supabase project and are skipped unless configured. Use a staging project with `supabase/schema.sql` applied, never the live one. Put these in a `.env.test` file (git ignored) and run `npm run test:rls`:
+
+```
+TEST_SUPABASE_URL=...
+TEST_SUPABASE_ANON_KEY=...
+TEST_SUPABASE_SERVICE_ROLE_KEY=...
+TEST_SUPABASE_CONFIRM_STAGING=yes
+```
+
+They create test clients and users named `rls-test-...`, check that nobody can see or change what they should not, and delete them afterwards (audit rows stay, since the log is append only). Sign-in pages and visual checks still need the manual `docs/TEST-PLAN.md` run.
+
+### Browser tests
+
+`npm run test:e2e` builds the app into `.next-e2e` (your normal `.next` build is left alone), starts it on port 3100 and runs `e2e/` in Chrome at desktop and phone (375px) width. First time only: `npx playwright install chromium`.
+
+By default the app points at an unreachable Supabase address, so only signed-out screens are tested: redirects to sign in, the sign-in and team sign-in pages, error messages, the privacy page, labels, skip link, sideways scroll and dark mode. No email is ever sent.
+
+Signed-in flows run only against a staging project. Set these (for example in your shell, never committed), with `supabase/schema.sql` applied to that project:
+
+```
+E2E_SUPABASE_URL=...
+E2E_SUPABASE_ANON_KEY=...
+E2E_SUPABASE_SERVICE_ROLE_KEY=...
+E2E_CONFIRM_STAGING=yes
+```
+
+Setup then creates test clients and users named `e2e-...`, signs a client and an admin (with two-step sign-in) in through the real screens, and teardown deletes them afterwards (audit rows stay).
+
 ## Onboarding a new client
 
 1. Admin: Clients, New client. Pick the engagement owner and SPOC.
