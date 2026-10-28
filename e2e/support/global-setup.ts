@@ -122,10 +122,13 @@ export default async function globalSetup(config: FullConfig) {
   await ap.getByLabel("Work email").fill(admin.email);
   await ap.getByLabel("Password").fill(password);
   await ap.getByRole("button", { name: "Sign in to admin" }).click();
-  await ap.waitForURL("**/auth/mfa**");
+  // The code screen can render while the address bar still shows /admin, so wait for the field.
+  await ap.getByLabel("6 digit code").waitFor();
   await nextTotpWindow();
   await ap.getByLabel("6 digit code").fill(totp(factor.totp.secret));
   await ap.getByRole("button", { name: "Verify" }).click();
+  await ap.getByLabel("6 digit code").waitFor({ state: "detached" });
+  await ap.goto("/admin");
   await ap.waitForURL("**/admin");
   await adminCtx.storageState({ path: ADMIN_SESSION });
 
