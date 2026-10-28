@@ -66,7 +66,9 @@ working rules but has its own stack, hosting and security model. Setup and featu
 - **Sam is CC'd on every notification email.** That is enforced in `lib/email.ts`; don't bypass it.
 - **Documents stay private**: served only through short-lived signed links, never a public bucket URL.
 - **Invite only.** Never add a self sign-up path. Staff and admins must keep two-step sign-in
-  (enforced in `middleware.ts`).
+  (enforced in `middleware.ts` **and** `requireProfile()` in `lib/auth.ts`). Middleware alone is not
+  enough: a page rendered from a server action's `redirect()` never passes through middleware, so the
+  page after a sign-in would show without the code. Keep both checks in step.
 - **Never write secrets** into code, docs or commit messages. Reference the env var name only.
   New env var: add it to `.env.example`, `.env.local`, and Netlify's dashboard, and mention it in the README.
 - **Schema changes:** edit `supabase/schema.sql` for fresh installs **and** give the one-off SQL for
@@ -154,5 +156,10 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   body limit; bucket `file_size_limit` (25 MB) now enforced in Storage.
 - **2026-10-28:** Real logo and favicon copied from `ramprate-ui`. Logo switched from a runtime file
   lookup (broken on serverless hosts) to a static import.
+- **2026-10-29:** Fixed a two-step sign-in gap: after the password, the first admin page loaded
+  without the code. `requireProfile()` now repeats the middleware check. Database policies now also
+  require two-step (`aal2`) for staff and admin rights via `public.has_mfa()`, so a password alone
+  opens nothing even straight from the Supabase API. Existing databases: `supabase/upgrade-2026-10-29-staff-two-step.sql`.
+  RLS tests give staff and admin test users a real TOTP factor for this reason.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.
