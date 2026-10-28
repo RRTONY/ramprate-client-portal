@@ -144,20 +144,27 @@ create index on public.queries (client_id, created_at desc);
 create index on public.query_messages (query_id, created_at);
 
 -- ===== Access helpers (security definer so policies can call them without recursion) =====
+-- Staff and admin rights need a session that passed two-step sign-in (aal2), so a password alone
+-- never opens client data, even straight from the API. Clients are not affected.
+create or replace function public.has_mfa() returns boolean
+language sql stable as $$
+  select coalesce(auth.jwt() ->> 'aal', '') = 'aal2';
+$$;
+
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
+  select exists (select 1 from profiles where id = auth.uid() and role = 'admin') and public.has_mfa();
 $$;
 
 create or replace function public.is_staff() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = auth.uid() and role in ('staff','admin'));
+  select exists (select 1 from profiles where id = auth.uid() and role in ('staff','admin')) and public.has_mfa();
 $$;
 
 create or replace function public.can_manage(cid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select public.is_admin()
-      or exists (select 1 from staff_clients where user_id = auth.uid() and client_id = cid);
+      or (public.has_mfa() and exists (select 1 from staff_clients where user_id = auth.uid() and client_id = cid));
 $$;
 
 create or replace function public.can_view(cid uuid) returns boolean

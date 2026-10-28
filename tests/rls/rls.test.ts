@@ -7,6 +7,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { totp } from "../../e2e/support/totp.ts";
 
 const URL = process.env.TEST_SUPABASE_URL;
 const ANON = process.env.TEST_SUPABASE_ANON_KEY;
@@ -57,7 +58,22 @@ async function makeUser(
   const db = createClient(URL!, ANON!, noSession);
   const { error: sErr } = await db.auth.signInWithPassword({ email, password });
   if (sErr) throw sErr;
+  if (role !== "client") {
+    // Staff rights need two-step sign-in, as in the real console.
+    const factor = await must(db.auth.mfa.enroll({ factorType: "totp" }));
+    const challenge = await must(db.auth.mfa.challenge({ factorId: factor.id }));
+    await ok(db.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.id, code: totp(factor.totp.secret) }));
+  }
   users[key] = { id: data.user.id, db };
+}
+
+/** A second session for an existing user that stopped after the password (no two-step code). */
+async function passwordOnly(key: keyof typeof users) {
+  const { data } = await svc.auth.admin.getUserById(users[key].id);
+  const db = createClient(URL!, ANON!, noSession);
+  const { error } = await db.auth.signInWithPassword({ email: data.user!.email!, password });
+  if (error) throw error;
+  return db;
 }
 
 async function must<T>(
@@ -67,6 +83,12 @@ async function must<T>(
   if (error) throw error;
   if (data == null) throw new Error("expected data, got none");
   return data;
+}
+
+/** For writes and calls that return no rows: only the error matters. */
+async function ok(p: PromiseLike<{ error: unknown }>) {
+  const { error } = await p;
+  if (error) throw error;
 }
 
 describe("row level security (staging Supabase)", { skip }, () => {
@@ -88,7 +110,7 @@ describe("row level security (staging Supabase)", { skip }, () => {
     await makeUser("clientB", "client", ids.clientB);
     await makeUser("staffA", "staff", null);
     await makeUser("admin", "admin", null);
-    await must(svc.from("staff_clients").insert({ user_id: users.staffA.id, client_id: ids.clientA }));
+    await ok(svc.from("staff_clients").insert({ user_id: users.staffA.id, client_id: ids.clientA }));
 
     paths.docA = `${ids.clientA}/${randomUUID()}-a.txt`;
     paths.hiddenDocA = `${ids.clientA}/${randomUUID()}-hidden.txt`;
@@ -111,14 +133,14 @@ describe("row level security (staging Supabase)", { skip }, () => {
     ids.docB = docs.find((d) => d.storage_path === paths.docB)!.id;
 
     for (const cid of [ids.clientA, ids.clientB]) {
-      await must(
+      await ok(
         svc.from("updates").insert([
           { client_id: cid, title: "Published", published: true },
           { client_id: cid, title: "Draft", published: false },
         ]),
       );
-      await must(svc.from("progress_items").insert({ client_id: cid, title: "Step" }));
-      await must(
+      await ok(svc.from("progress_items").insert({ client_id: cid, title: "Step" }));
+      await ok(
         svc.from("meetings").insert({ client_id: cid, title: "Sync", starts_at: new Date().toISOString() }),
       );
     }
@@ -233,12 +255,12 @@ describe("row level security (staging Supabase)", { skip }, () => {
   });
 
   it("set_my_notify changes only the caller's own preference", async () => {
-    await must(users.clientA.db.rpc("set_my_notify", { v: false }));
+    await ok(users.clientA.db.rpc("set_my_notify", { v: false }));
     const mine = await must(svc.from("profiles").select("notify_email").eq("id", users.clientA.id).single());
     const theirs = await must(svc.from("profiles").select("notify_email").eq("id", users.clientB.id).single());
     assert.equal(mine.notify_email, false);
     assert.equal(theirs.notify_email, true);
-    await must(users.clientA.db.rpc("set_my_notify", { v: true }));
+    await ok(users.clientA.db.rpc("set_my_notify", { v: true }));
   });
 
   it("a client user cannot open a query on another client or as someone else", async () => {
@@ -272,7 +294,7 @@ describe("row level security (staging Supabase)", { skip }, () => {
     const db = users.staffA.db;
     const changed = await db.from("queries").update({ subject: "rewritten" }).eq("id", ids.queryA);
     assert.ok(changed.error, "subject change refused by trigger");
-    await must(db.from("queries").update({ status: "answered" }).eq("id", ids.queryA));
+    await ok(db.from("queries").update({ status: "answered" }).eq("id", ids.queryA));
     const q = await must(svc.from("queries").select("subject, status").eq("id", ids.queryA).single());
     assert.equal(q.subject, "A question");
     assert.equal(q.status, "answered");
@@ -369,15 +391,25 @@ describe("row level security (staging Supabase)", { skip }, () => {
       assert.deepEqual(await must(anon.from(t).select("*").limit(1)), [], t);
   });
 
-  // ---------- Known gap ----------
+  // ---------- Two-step sign-in ----------
 
-  it(
-    "staff who skipped two-step sign-in cannot read client data straight from the API",
-    { todo: "RLS does not check aal2 yet; two-step is only enforced by middleware.ts" },
-    async () => {
-      // staffA signed in with a password only (aal1).
-      const docs = await must(users.staffA.db.from("documents").select("id").eq("client_id", ids.clientA));
-      assert.deepEqual(docs, []);
-    },
-  );
+  it("staff who skipped two-step sign-in cannot read client data straight from the API", async () => {
+    const db = await passwordOnly("staffA");
+    assert.deepEqual(await must(db.from("documents").select("id").eq("client_id", ids.clientA)), []);
+    assert.deepEqual(await must(db.from("clients").select("id")), []);
+  });
+
+  it("admins who skipped two-step sign-in get no admin rights", async () => {
+    const db = await passwordOnly("admin");
+    assert.deepEqual(await must(db.from("clients").select("id")), []);
+    assert.deepEqual(await must(db.from("audit_log").select("id")), []);
+    const { error } = await db.from("clients").insert({ name: `rls-test-${run}-x`, slug: `rls-test-${run}-x` });
+    assert.ok(error);
+  });
+
+  it("staff and admins can still read their own profile before entering the code", async () => {
+    const db = await passwordOnly("staffA");
+    const mine = await must(db.from("profiles").select("role").eq("id", users.staffA.id));
+    assert.equal(mine[0]?.role, "staff");
+  });
 });

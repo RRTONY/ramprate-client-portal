@@ -34,7 +34,7 @@ Isolation is enforced in the database (Postgres row level security and storage p
 ## Setup
 
 1. **Supabase project.** Create one. Under Authentication, **disable "Allow new users to sign up"** (access is invite only). Set the Site URL to your portal URL.
-2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
+2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead; databases set up before 2026-10-29 also need `supabase/upgrade-2026-10-29-staff-two-step.sql`), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
 3. **Email templates.** In Authentication > Email Templates, set the link in the Invite and Reset Password templates to:
    - Invite: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password`
    - Reset: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/set-password`
