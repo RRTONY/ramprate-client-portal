@@ -105,7 +105,7 @@ working rules but has its own stack, hosting and security model. Setup and featu
 
 A change isn't done until it has been checked with real tools, not just read over.
 
-1. Type check: `npx tsc --noEmit`
+1. Type check: `npx tsc --noEmit`, and tests: `npm test` (Node's built-in runner, `tests/`). Any new or changed server action, route or `lib/` helper gets a test there; new actions go in the permission lists at the top of `tests/admin-actions.test.ts`. RLS or schema change: add a case to `tests/rls/rls.test.ts` and run `npm run test:rls` against staging.
 2. Build: `npm run build`
 3. Anything touching auth, RLS, documents, email or the digest: run the matching lines of
    `docs/TEST-PLAN.md` against a staging Supabase project with test users, never real clients.
@@ -133,6 +133,7 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
 
 **Checks:**
 - Type check: passed / failed / not run (why)
+- Unit tests: passed / failed / not run
 - Build: passed / failed / not run
 - Test plan lines run: which ones, or not run (why)
 - Code review: no issues / issues listed below
