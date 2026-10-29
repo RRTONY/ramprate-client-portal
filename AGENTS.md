@@ -161,5 +161,11 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   require two-step (`aal2`) for staff and admin rights via `public.has_mfa()`, so a password alone
   opens nothing even straight from the Supabase API. Existing databases: `supabase/upgrade-2026-10-29-staff-two-step.sql`.
   RLS tests give staff and admin test users a real TOTP factor for this reason.
+- **2026-10-29:** Fixed sign-in links and first sign-in. Invite and reset links from Supabase's
+  default email template (`?code=` or session after `#`) used to show "That link has expired";
+  `/auth/confirm` now handles all three forms and `/auth/finish` reads the `#` part in the browser.
+  After the two-step code, the browser now does a full page load (a client-side move left staff who
+  signed in on the client page on a blank screen). Uploads now report a failed save instead of
+  "uploaded". Admin header wraps on phones. Browser tests cover these flows and every page.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.

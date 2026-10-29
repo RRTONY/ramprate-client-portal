@@ -147,8 +147,11 @@ test.describe("team sign-in page", () => {
 test.describe("invite and reset links", () => {
   test("a link without a token shows the expired message", async ({ page }) => {
     await page.goto("/auth/confirm?type=invite");
-    await expect(page).toHaveURL("/login?error=link");
-    await expect(page.getByText("That link has expired.")).toBeVisible();
+    await expect(page).toHaveURL("/auth/finish");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "expired or was already used" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "request a new one" })).toHaveAttribute("href", "/login");
   });
 });
 

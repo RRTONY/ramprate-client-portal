@@ -46,7 +46,12 @@ export function DocumentUploadForm({
     formData.delete("file");
     formData.set("storage_path", path);
     formData.set("file_name", file.name);
-    await action(formData);
+    try {
+      await action(formData);
+    } catch {
+      setBusy(false);
+      setError("The file uploaded but could not be saved. Please try again.");
+    }
   }
 
   return (

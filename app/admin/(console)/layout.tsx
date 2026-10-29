@@ -11,13 +11,13 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen">
       <header className="bg-ink text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/admin" className="flex items-center gap-2 font-bold">
               <Logo size={30} onDark />
               <span className="text-slate-400">Portal admin</span>
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-slate-300">
+            <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-300">
               <Link href="/admin" className="hover:text-white">
                 Clients
               </Link>

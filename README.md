@@ -38,6 +38,7 @@ Isolation is enforced in the database (Postgres row level security and storage p
 3. **Email templates.** In Authentication > Email Templates, set the link in the Invite and Reset Password templates to:
    - Invite: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password`
    - Reset: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/set-password`
+   - Links from Supabase's default templates also work (they come back with `?code=` or with the session after `#`, finished on `/auth/finish`). Add the portal's `/auth/confirm` address under Authentication > URL Configuration > Redirect URLs.
 4. **First admin.** Add yourself in Authentication > Users (set a password), then run the commented SQL at the bottom of `seed.sql` to give yourself the admin profile.
 5. **Resend.** Verify the sending domain (for example ramprate.com), create an API key.
 6. **Environment.** Copy `.env.example` to `.env.local` and fill it in. `SAM_EMAIL` is the address copied on every notification. Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser; it is only used server side for inviting and removing users.
@@ -113,6 +114,9 @@ E2E_CONFIRM_STAGING=yes
 ```
 
 Setup then creates test clients and users named `e2e-...`, signs a client and an admin (with two-step sign-in) in through the real screens, and teardown deletes them afterwards (audit rows stay).
+
+- `e2e/signed-in.spec.ts`: what a client and an admin can and cannot see, and every portal and admin page loads with no errors or sideways scroll.
+- `e2e/flows.spec.ts`: invite links and password reset (custom and default email templates), first-time two-step setup for new staff from either sign-in page, and document uploads. Upload tests never tick "Email the client".
 
 ## Onboarding a new client
 

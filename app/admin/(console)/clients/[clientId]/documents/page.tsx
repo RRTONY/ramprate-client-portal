@@ -13,6 +13,7 @@ const ERR: Record<string, string> = {
   nofile: "Choose a file to upload.",
   toolarge: "That file is over the 25 MB limit.",
   upload: "The upload failed. Please try again.",
+  save: "The file uploaded but could not be saved. Please try again.",
 };
 
 export default async function AdminDocuments({

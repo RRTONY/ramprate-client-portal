@@ -41,6 +41,7 @@ const fresh = () => ({
   rpcs: [] as { fn: string; args: unknown }[],
   otpChecks: [] as Row[],
   otpError: null as DbError | null,
+  codeExchanges: [] as string[],
   signedOut: false,
   serviceClients: 0,
 });
@@ -265,6 +266,10 @@ function makeClient(kind: Call["client"]) {
       },
       verifyOtp: async (args: Row) => {
         db.otpChecks.push(args);
+        return { data: {}, error: db.otpError };
+      },
+      exchangeCodeForSession: async (code: string) => {
+        db.codeExchanges.push(code);
         return { data: {}, error: db.otpError };
       },
       mfa: {

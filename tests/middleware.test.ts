@@ -29,6 +29,7 @@ describe("middleware: signed out", () => {
     "/login",
     "/admin/login",
     "/auth/confirm",
+    "/auth/finish",
     "/auth/set-password",
     "/privacy",
     "/brand/logo.svg",

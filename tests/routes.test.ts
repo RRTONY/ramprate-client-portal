@@ -215,9 +215,25 @@ describe("invite and reset link handler", () => {
   });
 
   it("rejects links with missing parts without checking anything", async () => {
-    assert.equal(await land("?type=invite"), "/login?error=link");
     assert.equal(await land("?token_hash=abc"), "/login?error=link");
     assert.equal(db.otpChecks.length, 0);
+  });
+
+  it("signs in with a one-time code from Supabase's default template", async () => {
+    assert.equal(await land("?code=xyz&next=/auth/set-password"), "/auth/set-password");
+    assert.deepEqual(db.codeExchanges, ["xyz"]);
+    db.otpError = { message: "expired" };
+    assert.equal(await land("?code=old"), "/login?error=link");
+  });
+
+  it("hands a link with the session in the #fragment to the browser page", async () => {
+    assert.equal(
+      await land("?next=/auth/set-password"),
+      "/auth/finish?next=%2Fauth%2Fset-password",
+    );
+    assert.equal(await land("?type=invite"), "/auth/finish");
+    assert.equal(await land("?next=//evil.test"), "/auth/finish?next=%2F");
+    assert.equal(db.otpChecks.length + db.codeExchanges.length, 0);
   });
 });
 

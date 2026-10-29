@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { Notice } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 import { SocialLinks } from "@/components/SocialLinks";
+import { AuthHashForward } from "@/components/AuthFinish";
 
 async function signIn(formData: FormData) {
   "use server";
@@ -51,6 +52,7 @@ export default function LoginPage({
 }) {
   return (
     <main className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
+      <AuthHashForward />
       <div
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-gradient-to-b from-brand-50 to-transparent"
         aria-hidden

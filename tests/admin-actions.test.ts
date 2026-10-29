@@ -482,6 +482,19 @@ describe("uploadDocument", () => {
     assert.equal(table("documents").length, 0);
   });
 
+  it("reports a failed save instead of success, and removes the orphaned file", async () => {
+    signIn("admin");
+    putObject(10);
+    db.handlers.push((c) =>
+      c.table === "documents" && c.action === "insert"
+        ? { data: null, error: { message: "denied" } }
+        : undefined,
+    );
+    assert.match(await upload(), /error=save$/);
+    assert.deepEqual(db.storageRemoved, [path]);
+    assert.deepEqual(auditActions(), []);
+  });
+
   it("accepts a file of exactly 25 MB", async () => {
     signIn("admin");
     putObject(25 * 1024 * 1024);

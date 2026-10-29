@@ -418,7 +418,7 @@ export async function uploadDocument(clientId: string, formData: FormData) {
     redirect(adminPath(clientId, "/documents?error=toolarge"));
   }
 
-  await supabase.from("documents").insert({
+  const { error: saveError } = await supabase.from("documents").insert({
     client_id: clientId,
     title: s(formData, "title") || fileName,
     category: pick(s(formData, "category"), DOC_CATEGORIES, "Other"),
@@ -429,6 +429,10 @@ export async function uploadDocument(clientId: string, formData: FormData) {
     is_signed: formData.get("is_signed") === "on",
     uploaded_by: profile.id,
   });
+  if (saveError) {
+    await supabase.storage.from("client-documents").remove([path]);
+    redirect(adminPath(clientId, "/documents?error=save"));
+  }
   await touch(clientId);
   const docTitle = s(formData, "title") || fileName;
   await logEvent({

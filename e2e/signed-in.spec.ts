@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { stagingEnabled, STATE_FILE, CLIENT_SESSION, ADMIN_SESSION, type World } from "./support/env";
 
 // Signed-in flows. Run only against a confirmed staging project (see README, "Browser tests").
@@ -67,7 +67,10 @@ test.describe("client user", () => {
     await page.getByLabel("Subject").fill(subject);
     await page.getByLabel("Your question").fill("Is the browser test working?");
     await page.getByRole("button", { name: "Send question" }).click();
-    await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}/queries/[0-9a-f-]{36}`));
+    // Several sequential Supabase round trips plus the redirected page load; 5s is too tight.
+    await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}/queries/[0-9a-f-]{36}`), {
+      timeout: 15_000,
+    });
     await expect(page.getByText(subject).first()).toBeVisible();
   });
 });
@@ -94,4 +97,63 @@ test.describe("admin user", () => {
     expect(res?.status()).toBe(200);
     await expect(page).toHaveURL(/\/admin\/audit/);
   });
+});
+
+/** Opens a page and checks it loads with a main heading, sideways-scroll free, and no errors. */
+async function loadsCleanly(page: Page, path: string) {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  const res = await page.goto(path);
+  expect(res?.status(), path).toBe(200);
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  const { scroll, width } = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    width: window.innerWidth,
+  }));
+  expect(scroll, `${path} should not scroll sideways`).toBeLessThanOrEqual(width);
+  expect(errors, path).toEqual([]);
+}
+
+const PORTAL_PAGES = ["", "/progress", "/updates", "/documents", "/queries", "/team", "/account"];
+const ADMIN_CLIENT_PAGES = [
+  "",
+  "/progress",
+  "/updates",
+  "/meetings",
+  "/documents",
+  "/queries",
+  "/team",
+  "/access",
+  "/history",
+];
+const ADMIN_PAGES = ["/admin", "/admin/audit", "/admin/team", "/admin/users", "/admin/clients/new"];
+
+test.describe("every client page", () => {
+  test.use({ storageState: CLIENT_SESSION });
+  for (const p of PORTAL_PAGES)
+    test(`portal${p || " overview"} loads`, async ({ page }) => {
+      await loadsCleanly(page, `/portal/${world().clientA.id}${p}`);
+    });
+
+  test("admin pages send a client back to their own portal", async ({ page }) => {
+    test.setTimeout(120_000);
+    const w = world();
+    for (const p of [...ADMIN_PAGES, ...ADMIN_CLIENT_PAGES.map((c) => `/admin/clients/${w.clientA.id}${c}`)]) {
+      await page.goto(p);
+      await expect(page, p).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`));
+    }
+  });
+});
+
+test.describe("every admin page", () => {
+  test.use({ storageState: ADMIN_SESSION });
+  for (const p of ADMIN_PAGES)
+    test(`${p} loads`, async ({ page }) => {
+      await loadsCleanly(page, p);
+    });
+  for (const p of ADMIN_CLIENT_PAGES)
+    test(`client admin${p || " overview"} loads`, async ({ page }) => {
+      await loadsCleanly(page, `/admin/clients/${world().clientA.id}${p}`);
+    });
 });

@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 
 type Mode = "loading" | "enroll" | "verify" | "done";
 
 /** TOTP two-step sign-in using any authenticator app (Google Authenticator, 1Password, Authy...). */
 export function MfaForm({ forceEnroll }: { forceEnroll: boolean }) {
-  const router = useRouter();
   const supabase = createBrowserSupabase();
   const [mode, setMode] = useState<Mode>("loading");
   const [factorId, setFactorId] = useState("");
@@ -69,8 +67,9 @@ export function MfaForm({ forceEnroll }: { forceEnroll: boolean }) {
       return;
     }
     setMode("done");
-    router.replace("/");
-    router.refresh();
+    // A full page load: a client-side move to "/" can reuse the page shown before the code
+    // and leave a blank screen, and the server must see the new two-step session.
+    window.location.replace("/");
   }
 
   if (mode === "loading")
