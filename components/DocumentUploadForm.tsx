@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { Spinner } from "@/components/ui";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -114,7 +115,7 @@ export function DocumentUploadForm({
       </div>
       <div className="flex justify-end sm:col-span-2">
         <button type="submit" className="btn" disabled={busy}>
-          {busy ? "Uploading..." : "Upload"}
+          {busy ? <Spinner label="Uploading..." /> : "Upload"}
         </button>
       </div>
     </form>

@@ -1,4 +1,5 @@
 import { HEALTH_LABEL } from "@/lib/format";
+import { ImSpinner2 } from "react-icons/im";
 import { Icon, type IconName } from "@/components/icons";
 
 const HEALTH_STYLE: Record<string, string> = {
@@ -101,5 +102,21 @@ export function Notice({
     <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${k}`}>
       {children}
     </div>
+  );
+}
+
+/** Spinning loader. `label` is read out by screen readers in place of the hidden icon. */
+export function Spinner({
+  label,
+  className = "h-4 w-4",
+}: {
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span role="status" className="inline-flex items-center">
+      <ImSpinner2 aria-hidden className={`animate-spin ${className}`} />
+      <span className="sr-only">{label}</span>
+    </span>
   );
 }

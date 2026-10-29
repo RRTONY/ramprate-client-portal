@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/links";
+import { Spinner } from "@/components/ui";
 
 const hashParams = () => new URLSearchParams(window.location.hash.slice(1));
 const hasAuthHash = (h: URLSearchParams) =>
@@ -42,7 +43,11 @@ export function AuthFinish({ next }: { next: string | null }) {
         .
       </p>
     );
-  return <p className="text-sm text-slate-600">Signing you in...</p>;
+  return (
+    <div className="flex justify-center py-4 text-brand-600">
+      <Spinner label="Signing you in..." className="h-6 w-6" />
+    </div>
+  );
 }
 
 /** If Supabase sent the link to the home page instead, the sign-in page passes it on. */

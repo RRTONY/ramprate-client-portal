@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { Spinner } from "@/components/ui";
 
 export function SubmitButton({
   children,
@@ -13,8 +14,8 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className={className} disabled={pending}>
-      {pending ? pendingText : children}
+    <button type="submit" className={className} disabled={pending} aria-busy={pending}>
+      {pending ? <Spinner label={pendingText} /> : children}
     </button>
   );
 }

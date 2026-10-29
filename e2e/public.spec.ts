@@ -89,11 +89,16 @@ test.describe("client sign-in page", () => {
   });
 
   test("password reset never reveals whether an account exists", async ({ page }) => {
-    await page.getByText("Forgot your password?").click();
-    await page.getByPlaceholder("you@company.com").fill("nobody@example.test");
-    await page.getByRole("button", { name: "Send link" }).click();
+    await page.getByLabel("Email").fill("nobody@example.test");
+    await page.getByRole("button", { name: "Forgot your password?" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Reset your password" })).toBeVisible();
+    await expect(page.getByLabel("Email"), "the email carries over").toHaveValue("nobody@example.test");
+    await page.getByRole("button", { name: "Send reset link" }).click();
     await expect(page).toHaveURL("/login?reset=1");
+    await expect(page.getByRole("heading", { level: 1, name: "Check your email" })).toBeVisible();
     await expect(page.getByText("If that email has an account, a reset link is on its way.")).toBeVisible();
+    await page.getByRole("button", { name: "Back to sign in" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Welcome back" })).toBeVisible();
   });
 
   for (const [code, message] of [

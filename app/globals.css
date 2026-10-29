@@ -38,6 +38,7 @@ body { @apply bg-slate-50 text-ink antialiased; font-feature-settings: "cv11", "
 .dark .bg-slate-50 { background-color: #15141a; }
 .dark .bg-slate-100 { background-color: #26252e; }
 .dark .bg-brand-50 { background-color: #2a1d45; }
+.dark .from-brand-50 { --tw-gradient-from: #2a1d45 var(--tw-gradient-from-position); }
 .dark .bg-amber-50 { background-color: #3a2c10; }
 .dark .bg-emerald-50 { background-color: #10321f; }
 .dark .bg-red-50 { background-color: #3a1616; }

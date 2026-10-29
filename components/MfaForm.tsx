@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
+import { Spinner } from "@/components/ui";
 
 type Mode = "loading" | "enroll" | "verify" | "done";
 
@@ -73,7 +74,13 @@ export function MfaForm({ forceEnroll }: { forceEnroll: boolean }) {
   }
 
   if (mode === "loading")
-    return <p className="text-sm text-slate-600">{error || "Loading..."}</p>;
+    return error ? (
+      <p className="text-sm text-slate-600">{error}</p>
+    ) : (
+      <div className="flex justify-center py-6 text-brand-600">
+        <Spinner label="Loading..." className="h-6 w-6" />
+      </div>
+    );
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -125,11 +132,13 @@ export function MfaForm({ forceEnroll }: { forceEnroll: boolean }) {
         </div>
       )}
       <button className="btn w-full" disabled={busy}>
-        {busy
-          ? "Checking..."
-          : mode === "enroll"
-            ? "Turn on and continue"
-            : "Verify"}
+        {busy ? (
+          <Spinner label="Checking..." />
+        ) : mode === "enroll" ? (
+          "Turn on and continue"
+        ) : (
+          "Verify"
+        )}
       </button>
     </form>
   );
