@@ -16,7 +16,7 @@ One login per client, one place for everything about their engagement: overview,
 **Admin side** (`/admin`, RampRate staff only)
 
 - Client list with open question counts, create client (admins).
-- Per client: edit overview, progress items, activity posts, meetings, documents (upload, hide, delete), engagement team, questions inbox with replies, and access (invite client logins, assign staff).
+- Per client: edit overview, progress items, activity posts, meetings, documents (upload, hide, delete), engagement team, questions inbox with replies, and access (add client logins, edit or reset them, assign staff).
 - Drafts: activity posts and documents can be saved hidden and published later.
 - Team directory and staff access (admins): who appears on portals, who counts as an "admin contact", who can sign in to the console.
 - "Preview client view" shows exactly what the client sees.
@@ -27,21 +27,21 @@ One login per client, one place for everything about their engagement: overview,
 | ------ | ---------------------------------------------------------------------------- |
 | client | See their own client's portal only; ask and reply to questions               |
 | staff  | Everything above for clients they are assigned to; edit those clients        |
-| admin  | Everything, including creating clients, the team directory and staff invites |
+| admin  | Everything, including creating clients, the team directory, adding staff, and editing anyone's name, email or password |
 
 Isolation is enforced in the database (Postgres row level security and storage policies), not just in the UI, so a client cannot read another client's data even by guessing URLs or ids.
 
 ## Setup
 
 1. **Supabase project.** Create one. Under Authentication, **disable "Allow new users to sign up"** (access is invite only). Set the Site URL to your portal URL.
-2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead; databases set up before 2026-10-29 also need `supabase/upgrade-2026-10-29-staff-two-step.sql` and then `supabase/upgrade-2026-10-29-optional-two-step.sql`), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
+2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead; databases set up before 2026-10-29 also need `supabase/upgrade-2026-10-29-sign-in.sql`), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
 3. **Email templates.** In Authentication > Email Templates, set the link in the Invite and Reset Password templates to:
    - Invite: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password`
    - Reset: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/set-password`
    - Links from Supabase's default templates also work (they come back with `?code=` or with the session after `#`, finished on `/auth/finish`). Add the portal's `/auth/confirm` address under Authentication > URL Configuration > Redirect URLs.
 4. **First admin.** Add yourself in Authentication > Users (set a password), then run the commented SQL at the bottom of `seed.sql` to give yourself the admin profile.
 5. **Resend.** Verify the sending domain (for example ramprate.com), create an API key.
-6. **Environment.** Copy `.env.example` to `.env.local` and fill it in. `SAM_EMAIL` is the address copied on every notification. Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser; it is only used server side for inviting and removing users.
+6. **Environment.** Copy `.env.example` to `.env.local` and fill it in. `SAM_EMAIL` is the address copied on every notification. `DEFAULT_USER_PASSWORD` is the starting password for accounts an admin adds (people must choose their own at first sign-in). Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser; it is only used server side for adding, editing and removing users.
 7. **Run.** `npm install`, then `npm run dev`.
 8. **Netlify.** Create a new Netlify site from this repo (it is separate from the ramprate.com site). `netlify.toml` sets the build; Netlify detects Next.js on its own. Add every variable from `.env.example` under Site configuration > Environment variables. Netlify sets `URL` itself, which the weekly summary uses.
 
@@ -49,11 +49,12 @@ Isolation is enforced in the database (Postgres row level security and storage p
 
 ## Security, admin controls and audit
 
-- **Separate admin sign-in:** the RampRate team signs in at `/admin/login`. A client account that tries it is signed straight back out. Two-step sign-in (authenticator app) is optional: anyone who sets it up must enter the code at sign-in, everyone else goes straight in with their password. Clients can opt in under Account; set `REQUIRE_CLIENT_MFA=true` to require it for everyone.
-- **What admins can do:** create and delete clients, edit everything in every portal, manage the team directory, invite or remove staff, assign staff to clients, invite or remove client logins, read the audit log. Staff can do the same inside only the clients assigned to them.
+- **Separate admin sign-in:** the RampRate team signs in at `/admin/login`. A client account that tries it is signed straight back out. There is no two-step code: everyone signs in with email and password and goes straight to their dashboard. Only people an admin (or assigned staff, for client logins) adds can sign in.
+- **What admins can do:** create and delete clients, edit everything in every portal, manage the team directory, add or remove staff, assign staff to clients, add or remove client logins, edit anyone's name and email, reset anyone's password to the starting password, read the audit log. Staff can do the same inside only the clients assigned to them.
 - **What nobody can change: anything the client wrote.** Questions and replies written by a client cannot be edited or deleted by staff or admins (the database enforces it). Staff can reply and mark a question resolved.
 - **Audit log:** every sign-in, document view and download, edit, invite, email notification and status change is recorded with who, what and when (Pacific time in the viewer). The log is append only. Admins see everything at Audit log; each client has a History tab.
-- **"Nothing blank" rule:** a portal has an 11 point readiness checklist on its Overview tab. The client cannot be invited until it is complete. Admins can override, and the override is logged.
+- **Accounts and passwords:** an admin adds a person with name and email (Staff access, or a client's Access tab). The account starts on `DEFAULT_USER_PASSWORD`; nothing is emailed, the admin tells the person. At first sign-in they must choose their own password, and until then the database gives the account no access at all. Everyone can change their own password (Account page for clients, "Change password" in the admin header). Admins can edit anyone's name and email, or reset them back to the starting password. All of it is in the audit log.
+- **"Nothing blank" rule:** a portal has an 11 point readiness checklist on its Overview tab. Client logins cannot be added until it is complete. Admins can override, and the override is logged.
 
 ## Emails to clients
 
@@ -80,7 +81,7 @@ Before the first client, work through `docs/TEST-PLAN.md`.
 `npm test` runs every test in `tests/` with Node's built-in test runner (Node 22.18 or newer, no extra packages). It takes about a second and needs no database, keys or network.
 
 - `tests/auth.test.ts`: sign-in checks, who can manage which client, audit log writing, readiness, client notifications.
-- `tests/middleware.test.ts`: public pages, login redirects, two-step sign-in rules.
+- `tests/middleware.test.ts`: public pages and login redirects.
 - `tests/admin-actions.test.ts`, `tests/query-actions.test.ts`: every server action. Each one is checked for refusing signed-out users, clients and unassigned staff before changing anything, plus its own rules (input checks, audit entry, Sam CC, upload path and size checks).
 - `tests/routes.test.ts`: document download (60 second signed links), weekly digest (secret required), invite and reset links, sign out.
 - `tests/format.test.ts`, `tests/email.test.ts`: Pacific Time helpers and email content.
@@ -113,10 +114,10 @@ E2E_SUPABASE_SERVICE_ROLE_KEY=...
 E2E_CONFIRM_STAGING=yes
 ```
 
-Setup then creates test clients and users named `e2e-...`, signs a client and an admin (with two-step sign-in) in through the real screens, and teardown deletes them afterwards (audit rows stay).
+Setup then creates test clients and users named `e2e-...`, signs a client and an admin in through the real screens, and teardown deletes them afterwards (audit rows stay).
 
 - `e2e/signed-in.spec.ts`: what a client and an admin can and cannot see, and every portal and admin page loads with no errors or sideways scroll.
-- `e2e/flows.spec.ts`: invite links and password reset (custom and default email templates), new staff going straight to their dashboard from either sign-in page, and document uploads. Upload tests never tick "Email the client".
+- `e2e/flows.spec.ts`: invite links and password reset (custom and default email templates), new staff going straight to their dashboard from either sign-in page, admins adding, editing and resetting accounts, forced password change at first sign-in, changing your own password, and document uploads. Upload tests never tick "Email the client".
 
 ## Onboarding a new client
 
@@ -125,7 +126,7 @@ Setup then creates test clients and users named `e2e-...`, signs a client and an
 3. Team tab: add the other people on the engagement with their role and "contact them for".
 4. Documents tab: upload the NDA, MSA, SOW and onboarding pack.
 5. Progress and Meetings tabs: add the first next steps and the kickoff meeting.
-6. Access tab: invite the client's people. They get an email, set a password and land on their portal.
+6. Access tab: add the client's people (name and email), then tell them their email and the starting password. At first sign-in they choose their own password and land on their portal.
 7. Use "Preview client view" to check it before the first login.
 
 ## How query routing works
@@ -144,7 +145,7 @@ When a client submits a question or replies:
 app/login, app/auth/*         sign in, invite and reset links, set password, sign out
 app/portal/[clientId]/*       the six client sections
 app/admin/*                   admin console
-lib/admin-actions.ts          all content editing, uploads, invites (permission checked)
+lib/admin-actions.ts          all content editing, uploads, adding and editing accounts (permission checked)
 lib/query-actions.ts          question creation, replies, email routing
 lib/email.ts                  notification emails (Sam CC enforced here)
 supabase/schema.sql           tables, row level security, storage policies

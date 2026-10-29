@@ -7,6 +7,7 @@ export type Profile = {
   role: Role;
   client_id: string | null;
   notify_email?: boolean;
+  must_change_password?: boolean;
 };
 
 export type TeamMember = {

@@ -10,12 +10,12 @@ import {
   ADMIN_SESSION,
   type World,
 } from "./env";
-import { totp, nextTotpWindow } from "./totp";
+import { totp } from "./totp";
 
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
 
 /**
- * Staging only: creates two test clients, a client user and an admin user with two-step sign-in,
+ * Staging only: creates two test clients, a client user and an admin user (with an authenticator),
  * then signs both in through the real login screens and saves their sessions for the specs.
  */
 export default async function globalSetup(config: FullConfig) {
@@ -61,7 +61,7 @@ export default async function globalSetup(config: FullConfig) {
   const clientUser = await makeUser("client", "client", clientA.id);
   const admin = await makeUser("admin", "admin", null);
 
-  // Enrol the admin in two-step sign-in, like the real setup screen does.
+  // The admin also sets up an authenticator, to prove it no longer adds a code step.
   const adminDb = createClient(url, process.env.E2E_SUPABASE_ANON_KEY!, noSession);
   await must(adminDb.auth.signInWithPassword({ email: admin.email, password }));
   const factor = await must(adminDb.auth.mfa.enroll({ factorType: "totp" }));
@@ -122,14 +122,8 @@ export default async function globalSetup(config: FullConfig) {
   await ap.getByLabel("Work email").fill(admin.email);
   await ap.getByLabel("Password").fill(password);
   await ap.getByRole("button", { name: "Sign in to admin" }).click();
-  // The code screen can render while the address bar still shows /admin, so wait for the field.
-  await ap.getByLabel("6 digit code").waitFor();
-  await nextTotpWindow();
-  await ap.getByLabel("6 digit code").fill(totp(factor.totp.secret));
-  await ap.getByRole("button", { name: "Verify" }).click();
-  await ap.getByLabel("6 digit code").waitFor({ state: "detached" });
-  await ap.goto("/admin");
   await ap.waitForURL("**/admin");
+  await ap.getByText(clientA.name).waitFor();
   await adminCtx.storageState({ path: ADMIN_SESSION });
 
   await browser.close();

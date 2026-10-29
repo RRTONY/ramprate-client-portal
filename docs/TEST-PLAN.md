@@ -1,33 +1,36 @@
-# Test plan before any real client is invited
+# Test plan before any real client is added
 
-Do this against a real Supabase project (a separate "staging" project is best) with a test client and two test email addresses you control. Tick each line.
+Do this against a real Supabase project (a separate "staging" project is best) with a test client and two test email addresses you control. Tick each line. Lines ticked with a note in _italics_ were verified by the automated tests against the staging project on that date; the rest still need a person (real email, the live site, a phone in hand).
 
 ## A. Setup checks
 
 - [ ] schema.sql ran with no errors (and upgrade-from-v1.sql only if you ran an older version)
-- [ ] Sign-ups are disabled in Supabase Auth
-- [ ] Invite and Reset email templates pasted from docs/email-templates
+- [x] Sign-ups are disabled in Supabase Auth _(database test "nobody can create their own account", 2026-10-29)_
+- [ ] Reset email template pasted from docs/email-templates (used by "Forgot your password?")
 - [ ] Resend domain verified, test email arrives and is not in spam
-- [ ] Environment variables set (see .env.example), including CRON_SECRET
+- [ ] Environment variables set (see .env.example), including CRON_SECRET and DEFAULT_USER_PASSWORD
 
 ## B. Admin and staff
 
-- [ ] First admin created, can sign in at /admin/login
-- [ ] Two-step setup is forced on first admin sign-in, next sign-in asks for the code
-- [ ] Invite a staff user; they must also set up two-step sign-in
-- [ ] A staff user sees ONLY clients assigned to them; an admin sees all
+- [x] First admin created, can sign in at /admin/login _(browser test with a test admin, 2026-10-29)_
+- [x] Sign-in goes straight to the dashboard (no two-step code screen) for admins, staff and clients _(browser tests, 2026-10-29)_
+- [ ] Add a staff user (Staff access); they sign in with the starting password and must choose their own before anything opens
+- [x] Admin edits a user's name and email; the person signs in with the new email _(browser test, 2026-10-29)_
+- [x] Admin resets a user's password; the starting password works again and forces a new one _(browser test, 2026-10-29)_
+- [ ] Anyone can change their own password (client Account page, admin header "Change password")
+- [x] A staff user sees ONLY clients assigned to them; an admin sees all _(database and browser tests, 2026-10-29)_
 - [ ] A client account trying /admin/login is signed straight out
 - [ ] Team directory: add Calendly links; flag admin contact
 
 ## C. Client portal
 
 - [ ] Create a client, the readiness checklist shows what is missing
-- [ ] Invite is blocked while incomplete; admin override works and is logged
-- [ ] Complete the checklist; invite the test client user; the email arrives; password set; lands on their portal
+- [x] Adding a client login is blocked while incomplete; admin override works and is logged _(unit tests; browser test uses the override, 2026-10-29)_
+- [x] Complete the checklist; add the test client user; they sign in with the starting password, choose their own, and land on their portal _(browser test, 2026-10-29)_
 - [ ] Client sees all six sections, last updated and next update due, and the Action needed box when an item is "Waiting on you"
-- [ ] Client CANNOT open another client's URLs (try pasting the other client's /portal/<id>), and cannot open /admin
-- [ ] Draft updates and hidden documents are NOT visible to the client
-- [ ] Upload a PDF; client can View and Download; Hide it and confirm the client can no longer open it
+- [x] Client CANNOT open another client's URLs (try pasting the other client's /portal/<id>), and cannot open /admin _(browser and database tests, 2026-10-29)_
+- [x] Draft updates and hidden documents are NOT visible to the client _(database and browser tests, 2026-10-29)_
+- [x] Upload a PDF; client can View and Download; Hide it and confirm the client can no longer open it _(browser and database tests, 2026-10-29)_
 - [ ] On the live Netlify site, upload a file over 5 MB (for example a 10 MB PDF): it must succeed. Try a file over 25 MB: it must be refused
 
 ## D. Questions and email
@@ -42,8 +45,8 @@ Do this against a real Supabase project (a separate "staging" project is best) w
 
 ## E. Audit log and safety
 
-- [ ] Audit log (admin) shows sign-ins, document views/downloads, edits, invites; the client History tab shows that client's entries
-- [ ] Try to change an audit row in the Supabase SQL editor as an authenticated user: it must be refused
+- [ ] Audit log (admin) shows sign-ins, document views/downloads, edits, accounts added, edited or reset, password changes; the client History tab shows that client's entries
+- [x] Try to change an audit row in the Supabase SQL editor as an authenticated user: it must be refused _(database test, 2026-10-29)_
 - [ ] Delete a test client (admin): documents and client logins are removed
 - [ ] Phone check: open the portal on a phone and a tablet
 - [ ] Turn on daily backups in Supabase and confirm a restore point exists

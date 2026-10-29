@@ -46,6 +46,8 @@ create table public.profiles (
   role text not null default 'client' check (role in ('client','staff','admin')),
   client_id uuid references public.clients(id) on delete set null,
   notify_email boolean not null default true,
+  -- Set when an admin creates the account or resets the password to the starting password.
+  must_change_password boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -144,36 +146,33 @@ create index on public.queries (client_id, created_at desc);
 create index on public.query_messages (query_id, created_at);
 
 -- ===== Access helpers (security definer so policies can call them without recursion) =====
--- Two-step sign-in is optional. Staff and admins who set it up only get their rights after
--- entering the code (aal2), even straight from the API; those without a factor need only a password.
-create or replace function public.has_mfa() returns boolean
+-- Accounts still on the starting password get no rights until the person chooses their own,
+-- even straight from the API.
+create or replace function public.password_ok() returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce(auth.jwt() ->> 'aal', '') = 'aal2'
-      or not exists (
-        select 1 from auth.mfa_factors where user_id = auth.uid() and status = 'verified'
-      );
+  select not coalesce((select must_change_password from profiles where id = auth.uid()), false);
 $$;
 
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = auth.uid() and role = 'admin') and public.has_mfa();
+  select exists (select 1 from profiles where id = auth.uid() and role = 'admin') and public.password_ok();
 $$;
 
 create or replace function public.is_staff() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from profiles where id = auth.uid() and role in ('staff','admin')) and public.has_mfa();
+  select exists (select 1 from profiles where id = auth.uid() and role in ('staff','admin')) and public.password_ok();
 $$;
 
 create or replace function public.can_manage(cid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select public.is_admin()
-      or (public.has_mfa() and exists (select 1 from staff_clients where user_id = auth.uid() and client_id = cid));
+      or (public.password_ok() and exists (select 1 from staff_clients where user_id = auth.uid() and client_id = cid));
 $$;
 
 create or replace function public.can_view(cid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select public.can_manage(cid)
-      or exists (select 1 from profiles where id = auth.uid() and role = 'client' and client_id = cid);
+      or (public.password_ok() and exists (select 1 from profiles where id = auth.uid() and role = 'client' and client_id = cid));
 $$;
 
 -- ===== Row level security =====

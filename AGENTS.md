@@ -41,7 +41,7 @@ working rules but has its own stack, hosting and security model. Setup and featu
 ## 3. Stack
 
 - **Framework:** Next.js 14.2 App Router (not 16 like the website: `params` are plain objects, not promises)
-- **Data, auth, files:** Supabase (Postgres with row level security, Auth with TOTP two-step, private Storage)
+- **Data, auth, files:** Supabase (Postgres with row level security, Auth with email and password, private Storage)
 - **Email:** Resend (`lib/email.ts`)
 - **Styling:** Tailwind v3 (`tailwind.config.ts`) + shared classes in `app/globals.css`
 - **Hosting:** Netlify (`netlify.toml`). Weekly digest = scheduled function `netlify/functions/weekly-digest.mts`
@@ -57,7 +57,7 @@ working rules but has its own stack, hosting and security model. Setup and featu
 - **Server actions check permission first**: `assertCanManage(clientId)`, `requireStaff()` or
   `requireAdmin()` from `lib/auth.ts` as the first line.
 - **`SUPABASE_SERVICE_ROLE_KEY` is server only** and used only where there is no signed-in user or
-  for Auth admin tasks (invites, removing users, the cron digest). Never in a `"use client"` file,
+  for Auth admin tasks (adding, editing and removing users, clearing the starting-password flag, the cron digest). Never in a `"use client"` file,
   never prefixed `NEXT_PUBLIC_`. Prefer the user's own session client (`createClient()`) so RLS applies.
 - **Nothing a client wrote can be edited or deleted** by staff or admins (questions and replies).
   Keep it that way in both code and policies.
@@ -65,11 +65,9 @@ working rules but has its own stack, hosting and security model. Setup and featu
   document via `logEvent()` in `lib/audit.ts`. Never add update or delete policies on `audit_log`.
 - **Sam is CC'd on every notification email.** That is enforced in `lib/email.ts`; don't bypass it.
 - **Documents stay private**: served only through short-lived signed links, never a public bucket URL.
-- **Invite only.** Never add a self sign-up path. Two-step sign-in is optional (owner's decision,
-  2026-10-29), but anyone who set it up must enter the code. That is enforced in `middleware.ts`
-  **and** `requireProfile()` in `lib/auth.ts`, and in the database by `public.has_mfa()`. Middleware
-  alone is not enough: a page rendered from a server action's `redirect()` never passes through
-  middleware, so the page after a sign-in would show without the code. Keep all three in step.
+- **Invite only.** Never add a self sign-up path, and keep "Allow new users to sign up" off in
+  Supabase (an RLS test checks it). Two-step sign-in was removed for everyone at the owner's
+  request (2026-10-29); don't add it back without asking. Every account comes from an admin.
 - **Never write secrets** into code, docs or commit messages. Reference the env var name only.
   New env var: add it to `.env.example`, `.env.local`, and Netlify's dashboard, and mention it in the README.
 - **Schema changes:** edit `supabase/schema.sql` for fresh installs **and** give the one-off SQL for
@@ -168,10 +166,15 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   After the two-step code, the browser now does a full page load (a client-side move left staff who
   signed in on the client page on a blank screen). Uploads now report a failed save instead of
   "uploaded". Admin header wraps on phones. Browser tests cover these flows and every page.
-- **2026-10-29:** The owner asked to remove the required two-step step for staff and admins: they
-  now go straight from password to dashboard. Trade-off accepted: a stolen staff password alone now
-  opens that person's clients. `public.has_mfa()` passes for users with no verified factor, so
-  people who chose to set up an authenticator still need the code. Existing databases:
-  `supabase/upgrade-2026-10-29-optional-two-step.sql`.
+- **2026-10-29:** The owner asked to remove two-step sign-in for everyone: email and password go
+  straight to the dashboard. Trade-off accepted: a stolen password alone opens that account.
+  The `/auth/mfa` page, `REQUIRE_CLIENT_MFA` and `public.has_mfa()` are gone.
+  Existing databases: `supabase/upgrade-2026-10-29-sign-in.sql`.
+- **2026-10-29:** Accounts are added by an admin with name and email and start on the shared
+  `DEFAULT_USER_PASSWORD` (env var, never in code); nothing is emailed. `profiles.must_change_password`
+  forces a new password at first sign-in: `requireProfile()` sends them to `/auth/set-password?first=1`,
+  and `public.password_ok()` gives the account no rights in the database until then. Only the server
+  clears the flag (service key), after Supabase accepted the new password. People change only their
+  own password; admins can edit anyone's name and email or reset them to the starting password.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.

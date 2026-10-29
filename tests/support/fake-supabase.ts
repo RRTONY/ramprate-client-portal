@@ -35,8 +35,12 @@ const fresh = () => ({
   storageRemoved: [] as string[],
   signedUrls: [] as { path: string; expiresIn: number; options?: Row }[],
   signError: null as DbError | null,
-  invites: [] as { email: string; options: Row }[],
-  inviteError: null as DbError | null,
+  createdUsers: [] as Row[],
+  createUserError: null as DbError | null,
+  userUpdates: [] as { id: string; attrs: Row }[],
+  userUpdateError: null as DbError | null,
+  passwordChanges: [] as string[],
+  passwordChangeError: null as DbError | null,
   deletedUsers: [] as string[],
   rpcs: [] as { fn: string; args: unknown }[],
   otpChecks: [] as Row[],
@@ -264,6 +268,10 @@ function makeClient(kind: Call["client"]) {
         db.signedOut = true;
         return { error: null };
       },
+      updateUser: async ({ password }: { password: string }) => {
+        db.passwordChanges.push(password);
+        return { data: { user: db.user }, error: db.passwordChangeError };
+      },
       verifyOtp: async (args: Row) => {
         db.otpChecks.push(args);
         return { data: {}, error: db.otpError };
@@ -279,11 +287,14 @@ function makeClient(kind: Call["client"]) {
         }),
       },
       admin: {
-        inviteUserByEmail: async (email: string, options: Row) => {
-          db.invites.push({ email, options });
-          if (db.inviteError)
-            return { data: { user: null }, error: db.inviteError };
-          return { data: { user: { id: randomUUID(), email } }, error: null };
+        createUser: async (attrs: Row) => {
+          db.createdUsers.push(attrs);
+          if (db.createUserError) return { data: { user: null }, error: db.createUserError };
+          return { data: { user: { id: randomUUID(), email: attrs.email } }, error: null };
+        },
+        updateUserById: async (id: string, attrs: Row) => {
+          db.userUpdates.push({ id, attrs });
+          return { data: { user: { id } }, error: db.userUpdateError };
         },
         deleteUser: async (id: string) => {
           db.deletedUsers.push(id);

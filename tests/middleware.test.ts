@@ -21,7 +21,6 @@ async function landing(path: string): Promise<string | null> {
 }
 
 const enrolled = { currentLevel: "aal1", nextLevel: "aal2" };
-const verified = { currentLevel: "aal2", nextLevel: "aal2" };
 const noFactor = { currentLevel: "aal1", nextLevel: "aal1" };
 
 describe("middleware: signed out", () => {
@@ -65,51 +64,14 @@ describe("middleware: signed in", () => {
     assert.equal(await landing("/admin/login"), "/");
   });
 
-  it("asks for the second step when a factor is enrolled but not used yet", async () => {
-    signIn("client");
-    db.aal = enrolled;
-    assert.equal(await landing("/portal/abc"), "/auth/mfa");
-  });
-
-  it("lets a verified user through", async () => {
-    signIn("staff");
-    db.aal = verified;
-    assert.equal(await landing("/admin"), null);
-  });
-
-  it("lets staff and admins without a factor straight in", async () => {
-    signIn("staff");
-    db.aal = noFactor;
-    assert.equal(await landing("/admin"), null);
-    signIn("admin");
-    assert.equal(await landing("/admin/users"), null);
-  });
-
-  it("still asks staff who set up two-step for their code", async () => {
-    signIn("admin");
-    db.aal = enrolled;
-    assert.equal(await landing("/admin"), "/auth/mfa");
-  });
-
-  it("does not force clients to enrol by default", async () => {
-    signIn("client");
-    db.aal = noFactor;
-    assert.equal(await landing("/portal/abc"), null);
-  });
-
-  it("forces clients to enrol when REQUIRE_CLIENT_MFA is true", async () => {
-    process.env.REQUIRE_CLIENT_MFA = "true";
-    signIn("client");
-    db.aal = noFactor;
-    assert.equal(await landing("/portal/abc"), "/auth/mfa?enroll=1");
-  });
-
-  it("never loops on the two-step, sign-out or set-password pages", async () => {
-    signIn("staff");
-    db.aal = noFactor;
-    assert.equal(await landing("/auth/mfa"), null);
-    assert.equal(await landing("/auth/signout"), null);
-    assert.equal(await landing("/auth/set-password"), null);
+  it("never asks anyone for a two-step code, even with an authenticator set up", async () => {
+    for (const role of ["client", "staff", "admin"] as const) {
+      signIn(role);
+      for (const aal of [enrolled, noFactor]) {
+        db.aal = aal;
+        assert.equal(await landing(role === "client" ? "/portal/abc" : "/admin"), null);
+      }
+    }
   });
 });
 

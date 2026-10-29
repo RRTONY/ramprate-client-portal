@@ -55,22 +55,6 @@ export async function middleware(request: NextRequest) {
   // Already signed in: skip the login pages.
   if (path === "/login" || path === "/admin/login") return go("/");
 
-  // Two-step sign-in (TOTP) is optional: anyone who set it up must enter the code, and the
-  // company can require it for everyone with REQUIRE_CLIENT_MFA=true.
-  const onMfaPage =
-    path.startsWith("/auth/mfa") ||
-    path.startsWith("/auth/signout") ||
-    path.startsWith("/auth/set-password");
-  if (!onMfaPage && !isPublic(path)) {
-    const { data: aal } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal) {
-      if (aal.nextLevel === "aal2" && aal.currentLevel !== "aal2")
-        return go("/auth/mfa");
-      if (aal.nextLevel === "aal1" && process.env.REQUIRE_CLIENT_MFA === "true")
-        return go("/auth/mfa?enroll=1");
-    }
-  }
   return response;
 }
 

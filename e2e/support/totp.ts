@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 
-// Generates the same 6 digit codes an authenticator app shows (RFC 6238), so tests can
-// complete two-step sign-in for the staging admin user.
+// Generates the same 6 digit codes an authenticator app shows (RFC 6238), so tests can set up
+// an authenticator and prove it no longer adds a code step at sign-in.
 
 function base32Decode(input: string): Buffer {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -24,10 +24,4 @@ export function totp(secret: string, at = Date.now()): string {
   const offset = hmac[hmac.length - 1] & 0xf;
   const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
   return code.toString().padStart(6, "0");
-}
-
-/** Waits until a fresh 30 second window starts, so a code is never reused. */
-export async function nextTotpWindow() {
-  const ms = 30_000 - (Date.now() % 30_000) + 500;
-  await new Promise((r) => setTimeout(r, ms));
 }

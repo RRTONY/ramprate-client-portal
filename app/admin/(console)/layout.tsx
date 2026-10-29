@@ -40,6 +40,12 @@ export default async function AdminLayout({
             <span className="hidden text-slate-300 sm:inline">
               {profile.full_name || profile.email}
             </span>
+            <Link
+              href="/auth/set-password"
+              className="text-xs font-semibold text-slate-300 hover:text-white"
+            >
+              Change password
+            </Link>
             <form action="/auth/signout" method="post">
               <button className="rounded-lg border border-white/30 px-3 py-1.5 text-xs font-semibold hover:bg-white/10">
                 Sign out

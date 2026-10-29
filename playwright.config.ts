@@ -46,7 +46,7 @@ export default defineConfig({
       SAM_EMAIL: "sam@example.test",
       ADMIN_EMAIL: "",
       CRON_SECRET: "e2e-cron-secret",
-      REQUIRE_CLIENT_MFA: "false",
+      DEFAULT_USER_PASSWORD: "E2e-starting-password-1",
     },
   },
 });

@@ -54,6 +54,8 @@ const adminActions: [string, () => Promise<unknown>][] = [
   ["saveTeamMember", () => actions.saveTeamMember(form({ full_name: "x", email: "x@y.test" }))],
   ["inviteStaffUser", () => actions.inviteStaffUser(form({ email: "x@y.test" }))],
   ["removeStaffUser", () => actions.removeStaffUser("s1")],
+  ["updateUserAccount", () => actions.updateUserAccount("u1", "/admin/users", form({ email: "x@y.test" }))],
+  ["resetUserPassword", () => actions.resetUserPassword("u1", "/admin/users")],
   ["deleteClientAction", () => actions.deleteClientAction(CLIENT_A, form({ confirm: "Acme" }))],
 ];
 
@@ -583,20 +585,20 @@ describe("inviteClientUser", () => {
   const invite = (values: Record<string, string>) =>
     redirectOf(actions.inviteClientUser(CLIENT_A, form(values)));
 
-  it("invites to a ready portal and creates a client profile tied to this client", async () => {
+  it("adds a login on the starting password, tied to this client, and emails nobody", async () => {
     signIn("staff", { manages: [CLIENT_A] });
     readyClient();
-    process.env.NEXT_PUBLIC_SITE_URL = "https://portal.ramprate.com";
     const url = await invite({ email: " Jane@Acme.TEST ", full_name: "Jane" });
-    assert.equal(url, `/admin/clients/${CLIENT_A}/access?ok=invited`);
-    assert.equal(db.invites[0].email, "jane@acme.test");
-    assert.equal(
-      db.invites[0].options.redirectTo,
-      "https://portal.ramprate.com/auth/confirm?next=/auth/set-password",
-    );
+    assert.equal(url, `/admin/clients/${CLIENT_A}/access?ok=added`);
+    assert.equal(db.createdUsers[0].email, "jane@acme.test");
+    assert.equal(db.createdUsers[0].password, "Start-pass-2026");
+    assert.equal(db.createdUsers[0].email_confirm, true);
+    assert.equal(sent.length, 0);
     const p = table("profiles").find((r) => r.email === "jane@acme.test")!;
     assert.equal(p.role, "client");
     assert.equal(p.client_id, CLIENT_A);
+    assert.equal(p.must_change_password, true);
+    assert.deepEqual(auditActions(), ["client_user.add"]);
     assert.deepEqual(table("audit_log")[0].detail, {
       email: "jane@acme.test",
       readinessOverride: false,
@@ -607,7 +609,7 @@ describe("inviteClientUser", () => {
     signIn("staff", { manages: [CLIENT_A] });
     seed("clients", { id: CLIENT_A, summary: "", approach: "", priorities: [], expectations: "" });
     assert.match(await invite({ email: "a@b.test" }), /error=notready$/);
-    assert.equal(db.invites.length, 0);
+    assert.equal(db.createdUsers.length, 0);
     assert.equal(db.serviceClients, 0);
   });
 
@@ -615,13 +617,13 @@ describe("inviteClientUser", () => {
     signIn("staff", { manages: [CLIENT_A] });
     seed("clients", { id: CLIENT_A, summary: "", approach: "", priorities: [], expectations: "" });
     assert.match(await invite({ email: "a@b.test", override: "on" }), /error=notready$/);
-    assert.equal(db.invites.length, 0);
+    assert.equal(db.createdUsers.length, 0);
   });
 
   it("lets an admin override, and records the override in the audit log", async () => {
     signIn("admin");
     seed("clients", { id: CLIENT_A, summary: "", approach: "", priorities: [], expectations: "" });
-    assert.match(await invite({ email: "a@b.test", override: "on" }), /ok=invited$/);
+    assert.match(await invite({ email: "a@b.test", override: "on" }), /ok=added$/);
     assert.deepEqual(table("audit_log")[0].detail, {
       email: "a@b.test",
       readinessOverride: true,
@@ -633,10 +635,18 @@ describe("inviteClientUser", () => {
     assert.match(await invite({ email: "" }), /error=missing$/);
   });
 
-  it("reports an invite failure without creating a profile", async () => {
+  it("refuses to add anyone while no starting password is configured", async () => {
     signIn("admin");
     readyClient();
-    db.inviteError = { message: "rate limited" };
+    delete process.env.DEFAULT_USER_PASSWORD;
+    assert.match(await invite({ email: "a@b.test" }), /error=invite$/);
+    assert.equal(db.createdUsers.length, 0);
+  });
+
+  it("reports a failure (for example an existing account) without creating a profile", async () => {
+    signIn("admin");
+    readyClient();
+    db.createUserError = { message: "already registered" };
     assert.match(await invite({ email: "a@b.test" }), /error=invite$/);
     assert.equal(table("profiles").filter((p) => p.email === "a@b.test").length, 0);
   });
@@ -736,18 +746,21 @@ describe("saveTeamMember", () => {
 });
 
 describe("inviteStaffUser", () => {
-  it("invites staff by default and never ties them to a client", async () => {
+  it("adds staff by default on the starting password and never ties them to a client", async () => {
     signIn("admin");
     assert.equal(
       await redirectOf(actions.inviteStaffUser(form({ email: "New@RampRate.com", role: "superuser" }))),
-      "/admin/users?ok=invited",
+      "/admin/users?ok=added",
     );
+    assert.equal(db.createdUsers[0].password, "Start-pass-2026");
     const p = table("profiles").find((r) => r.email === "new@ramprate.com")!;
     assert.equal(p.role, "staff");
     assert.equal(p.client_id, null);
+    assert.equal(p.must_change_password, true);
+    assert.equal(sent.length, 0);
   });
 
-  it("can invite an admin", async () => {
+  it("can add an admin", async () => {
     signIn("admin");
     await redirectOf(actions.inviteStaffUser(form({ email: "boss@ramprate.com", role: "admin" })));
     assert.equal(table("profiles").find((r) => r.email === "boss@ramprate.com")!.role, "admin");
@@ -756,8 +769,59 @@ describe("inviteStaffUser", () => {
   it("reports failures", async () => {
     signIn("admin");
     assert.equal(await redirectOf(actions.inviteStaffUser(form({ email: "" }))), "/admin/users?error=missing");
-    db.inviteError = { message: "x" };
+    db.createUserError = { message: "x" };
     assert.equal(await redirectOf(actions.inviteStaffUser(form({ email: "a@b.test" }))), "/admin/users?error=invite");
+  });
+});
+
+describe("updateUserAccount", () => {
+  const edit = (values: Record<string, string>, back = "/admin/users") =>
+    redirectOf(actions.updateUserAccount("u1", back, form(values)));
+
+  it("changes anyone's name and sign-in email, and logs the old email", async () => {
+    signIn("admin");
+    seed("profiles", { id: "u1", email: "old@acme.test", full_name: "Old", role: "client", client_id: CLIENT_A });
+    const back = `/admin/clients/${CLIENT_A}/access`;
+    assert.equal(await edit({ email: " New@Acme.test ", full_name: "New Name" }, back), `${back}?ok=updated`);
+    assert.deepEqual(db.userUpdates[0], {
+      id: "u1",
+      attrs: { email: "new@acme.test", email_confirm: true, user_metadata: { full_name: "New Name" } },
+    });
+    const p = table("profiles").find((r) => r.id === "u1")!;
+    assert.equal(p.email, "new@acme.test");
+    assert.equal(p.full_name, "New Name");
+    assert.deepEqual(table("audit_log")[0].detail, { from: "old@acme.test", email: "new@acme.test", full_name: "New Name" });
+  });
+
+  it("keeps the old details when Supabase refuses the change", async () => {
+    signIn("admin");
+    seed("profiles", { id: "u1", email: "old@acme.test", role: "staff" });
+    db.userUpdateError = { message: "email taken" };
+    assert.equal(await edit({ email: "taken@acme.test" }), "/admin/users?error=update");
+    assert.equal(table("profiles").find((r) => r.id === "u1")!.email, "old@acme.test");
+  });
+
+  it("never redirects off-site and needs an email", async () => {
+    signIn("admin");
+    seed("profiles", { id: "u1", email: "a@b.test", role: "staff" });
+    assert.equal(await edit({ email: "" }, "https://evil.test"), "/admin/users?error=missing");
+  });
+});
+
+describe("resetUserPassword", () => {
+  it("puts anyone back on the starting password and forces a change", async () => {
+    signIn("admin");
+    seed("profiles", { id: "u1", email: "a@acme.test", role: "client", client_id: CLIENT_A });
+    assert.equal(await redirectOf(actions.resetUserPassword("u1", "/admin/users")), "/admin/users?ok=reset");
+    assert.deepEqual(db.userUpdates[0], { id: "u1", attrs: { password: "Start-pass-2026" } });
+    assert.equal(table("profiles").find((r) => r.id === "u1")!.must_change_password, true);
+    assert.deepEqual(auditActions(), ["user.password_reset"]);
+  });
+
+  it("changes nothing for an unknown user", async () => {
+    signIn("admin");
+    assert.equal(await redirectOf(actions.resetUserPassword("nobody", "/admin/users")), "/admin/users?error=notfound");
+    assert.equal(db.userUpdates.length, 0);
   });
 });
 

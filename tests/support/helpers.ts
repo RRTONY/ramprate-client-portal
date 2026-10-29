@@ -57,8 +57,8 @@ const ENV_KEYS = [
   "ADMIN_EMAIL",
   "EMAIL_FROM",
   "CRON_SECRET",
-  "REQUIRE_CLIENT_MFA",
   "NEXT_PUBLIC_SITE_URL",
+  "DEFAULT_USER_PASSWORD",
 ];
 
 const realFetch = globalThis.fetch;
@@ -75,6 +75,7 @@ export function freshWorld(): SentEmail[] {
   for (const k of ENV_KEYS) delete process.env[k];
   process.env.RESEND_API_KEY = "re_test_key";
   process.env.SAM_EMAIL = "sam@ramprate.com";
+  process.env.DEFAULT_USER_PASSWORD = "Start-pass-2026";
   const sent: SentEmail[] = [];
   globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
     sent.push(JSON.parse(String(init?.body)));

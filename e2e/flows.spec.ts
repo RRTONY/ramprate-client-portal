@@ -156,6 +156,96 @@ test.describe("new staff member", () => {
   });
 });
 
+test.describe("accounts an admin adds", () => {
+  // The browser tests run the app with this starting password (playwright.config.ts).
+  const STARTING = "E2e-starting-password-1";
+  test.describe.configure({ timeout: 90_000 });
+
+  async function signInWith(page: Page, email: string, password: string) {
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+  }
+
+  async function chooseOwnPassword(page: Page) {
+    await expect(page).toHaveURL(/\/auth\/set-password\?first=1/, { timeout: 15_000 });
+    await expect(page.getByText("You signed in with the starting password")).toBeVisible();
+    const mine = `Mine-${randomUUID()}`;
+    await setPassword(page, mine);
+    return mine;
+  }
+
+  test("admin adds a client login; first sign-in forces a new password; admin can reset it", async ({
+    browser,
+  }) => {
+    const w = world();
+    const email = `e2e-${w.run}-added-${randomUUID().slice(0, 6)}@example.test`;
+    const admin = await browser.newPage({ storageState: ADMIN_SESSION });
+    const access = `/admin/clients/${w.clientA.id}/access`;
+    await admin.goto(access);
+    await admin.getByLabel("Full name").first().fill("E2E Added");
+    await admin.getByLabel("Email").first().fill(email);
+    await admin.getByLabel(/Add anyway/).check();
+    await admin.getByRole("button", { name: "Add user" }).click();
+    await expect(admin.getByText("User added.")).toBeVisible({ timeout: 15_000 });
+    const { data } = await svc().from("profiles").select("id").eq("email", email).single();
+    created.push(data!.id);
+
+    const person = await browser.newPage();
+    await signInWith(person, email, STARTING);
+    const mine = await chooseOwnPassword(person);
+    await expect(person).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+
+    await signInWith(person, email, STARTING);
+    await expect(person.getByText("That email or password is not correct.")).toBeVisible();
+    await signInWith(person, email, mine);
+    await expect(person).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+
+    await admin.goto(access);
+    const row = admin.locator("div.p-4").filter({ hasText: email });
+    await row.getByText("Edit").click();
+    await row.getByRole("button", { name: "Reset password" }).click();
+    await expect(admin.getByText("Password reset to the starting password.")).toBeVisible({ timeout: 15_000 });
+    await signInWith(person, email, STARTING);
+    await chooseOwnPassword(person);
+  });
+
+  test("an admin can change a person's name and email", async ({ browser }) => {
+    const w = world();
+    const user = await makeUser("client");
+    const admin = await browser.newPage({ storageState: ADMIN_SESSION });
+    await admin.goto(`/admin/clients/${w.clientA.id}/access`);
+    const row = admin.locator("div.p-4").filter({ hasText: user.email });
+    await row.getByText("Edit").click();
+    const renamed = user.email.replace("@", "-renamed@");
+    await row.getByLabel("Full name").fill("E2E Renamed");
+    await row.getByLabel("Email").fill(renamed);
+    await row.getByRole("button", { name: "Save" }).click();
+    await expect(admin.getByText("Details saved.")).toBeVisible({ timeout: 15_000 });
+    await expect(admin.getByText("E2E Renamed")).toBeVisible();
+
+    const person = await browser.newPage();
+    await signInWith(person, renamed, user.password);
+    await expect(person).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+  });
+
+  test("a client can change their own password from Account", async ({ page }) => {
+    const w = world();
+    const user = await makeUser("client");
+    await signInWith(page, user.email, user.password);
+    await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+    await page.goto(`/portal/${w.clientA.id}/account`);
+    await page.getByRole("link", { name: "Change password" }).click();
+    const fresh = `Fresh-${randomUUID()}`;
+    await setPassword(page, fresh);
+    await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+    await signInWith(page, user.email, fresh);
+    await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+  });
+});
+
 test.describe("document upload", () => {
   test.use({ storageState: ADMIN_SESSION });
 

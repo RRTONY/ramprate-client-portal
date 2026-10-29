@@ -15,6 +15,7 @@ import {
 import { logEvent } from "@/lib/audit";
 import { notifyClientUsers } from "@/lib/notify";
 import { getReadiness } from "@/lib/readiness";
+import { safeNext } from "@/lib/links";
 
 const s = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const orNull = (v: string) => (v === "" ? null : v);
@@ -551,6 +552,22 @@ export async function removeClientTeamMember(clientId: string, rowId: string) {
 }
 
 // ---------- Access: client logins and staff assignment ----------
+
+/**
+ * Creates a sign-in with the shared starting password (DEFAULT_USER_PASSWORD). Nothing is
+ * emailed: the admin tells the person. They must choose their own password at first sign-in.
+ */
+async function createAccount(email: string, fullName: string): Promise<string | null> {
+  const password = process.env.DEFAULT_USER_PASSWORD;
+  if (!password) return null;
+  const { data, error } = await createServiceClient().auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+  return error || !data.user ? null : data.user.id;
+}
 export async function inviteClientUser(clientId: string, formData: FormData) {
   const profile = await assertCanManage(clientId);
   const email = s(formData, "email").toLowerCase();
@@ -574,33 +591,26 @@ export async function inviteClientUser(clientId: string, formData: FormData) {
   if (!readiness.ready && !override)
     redirect(adminPath(clientId, "/access?error=notready"));
 
-  const svc = createServiceClient();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const { data, error } = await svc.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${site}/auth/confirm?next=/auth/set-password`,
-    data: { full_name: fullName },
-  });
-  if (error || !data.user)
-    redirect(adminPath(clientId, "/access?error=invite"));
+  const id = await createAccount(email, fullName);
+  if (!id) redirect(adminPath(clientId, "/access?error=invite"));
 
-  await svc
-    .from("profiles")
-    .upsert({
-      id: data.user.id,
-      email,
-      full_name: fullName,
-      role: "client",
-      client_id: clientId,
-    });
+  await createServiceClient().from("profiles").upsert({
+    id,
+    email,
+    full_name: fullName,
+    role: "client",
+    client_id: clientId,
+    must_change_password: true,
+  });
   await logEvent({
-    action: "client_user.invite",
+    action: "client_user.add",
     entity: "profile",
-    entityId: data.user.id,
+    entityId: id,
     clientId,
     detail: { email, readinessOverride: override },
   });
   revalidatePath(adminPath(clientId, "/access"));
-  redirect(adminPath(clientId, "/access?ok=invited"));
+  redirect(adminPath(clientId, "/access?ok=added"));
 }
 
 export async function revokeClientUser(clientId: string, userId: string) {
@@ -692,30 +702,76 @@ export async function inviteStaffUser(formData: FormData) {
   const fullName = s(formData, "full_name");
   const role = s(formData, "role") === "admin" ? "admin" : "staff";
   if (!email) redirect("/admin/users?error=missing");
-  const svc = createServiceClient();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const { data, error } = await svc.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${site}/auth/confirm?next=/auth/set-password`,
-    data: { full_name: fullName },
+  const id = await createAccount(email, fullName);
+  if (!id) redirect("/admin/users?error=invite");
+  await createServiceClient().from("profiles").upsert({
+    id,
+    email,
+    full_name: fullName,
+    role,
+    client_id: null,
+    must_change_password: true,
   });
-  if (error || !data.user) redirect("/admin/users?error=invite");
-  await svc
-    .from("profiles")
-    .upsert({
-      id: data.user.id,
-      email,
-      full_name: fullName,
-      role,
-      client_id: null,
-    });
   await logEvent({
-    action: "staff_user.invite",
+    action: "staff_user.add",
     entity: "profile",
-    entityId: data.user.id,
+    entityId: id,
     detail: { email, role },
   });
   revalidatePath("/admin/users");
-  redirect("/admin/users?ok=invited");
+  redirect("/admin/users?ok=added");
+}
+
+/** Admin only: change anyone's name and sign-in email. */
+export async function updateUserAccount(userId: string, back: string, formData: FormData) {
+  await requireAdmin();
+  const to = safeNext(back, "/admin/users");
+  const email = s(formData, "email").toLowerCase();
+  const fullName = s(formData, "full_name");
+  if (!email) redirect(`${to}?error=missing`);
+  const svc = createServiceClient();
+  const { data: p } = await svc.from("profiles").select("id, email, client_id").eq("id", userId).maybeSingle();
+  if (!p) redirect(`${to}?error=notfound`);
+  const oldEmail = p.email;
+  const { error } = await svc.auth.admin.updateUserById(userId, {
+    email,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+  if (error) redirect(`${to}?error=update`);
+  await svc.from("profiles").update({ email, full_name: fullName }).eq("id", userId);
+  await logEvent({
+    action: "user.update",
+    entity: "profile",
+    entityId: userId,
+    clientId: p.client_id ?? undefined,
+    detail: { from: oldEmail, email, full_name: fullName },
+  });
+  revalidatePath(to);
+  redirect(`${to}?ok=updated`);
+}
+
+/** Admin only: put anyone back on the starting password; they must choose a new one at sign-in. */
+export async function resetUserPassword(userId: string, back: string) {
+  await requireAdmin();
+  const to = safeNext(back, "/admin/users");
+  const password = process.env.DEFAULT_USER_PASSWORD;
+  if (!password) redirect(`${to}?error=reset`);
+  const svc = createServiceClient();
+  const { data: p } = await svc.from("profiles").select("id, email, client_id").eq("id", userId).maybeSingle();
+  if (!p) redirect(`${to}?error=notfound`);
+  const { error } = await svc.auth.admin.updateUserById(userId, { password });
+  if (error) redirect(`${to}?error=reset`);
+  await svc.from("profiles").update({ must_change_password: true }).eq("id", userId);
+  await logEvent({
+    action: "user.password_reset",
+    entity: "profile",
+    entityId: userId,
+    clientId: p.client_id ?? undefined,
+    detail: { email: p.email },
+  });
+  revalidatePath(to);
+  redirect(`${to}?ok=reset`);
 }
 
 export async function removeStaffUser(userId: string) {

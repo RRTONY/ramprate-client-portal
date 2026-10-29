@@ -6,9 +6,24 @@ import {
   revokeClientUser,
   unassignStaff,
 } from "@/lib/admin-actions";
-import { Notice } from "@/components/ui";
+import { Notice, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { AccountEditor } from "@/components/AccountEditor";
 import type { Profile } from "@/lib/types";
+
+const OK: Record<string, string> = {
+  added:
+    "User added. Tell them their email and the starting password. They choose their own password at first sign-in.",
+  updated: "Details saved.",
+  reset: "Password reset to the starting password. They choose a new one at their next sign-in.",
+};
+
+const ERR: Record<string, string> = {
+  missing: "Enter an email address.",
+  invite: "That user could not be added. Check the email address, and whether the person already has an account.",
+  update: "Those details could not be saved. The email may already be in use.",
+  reset: "The password could not be reset. Please try again.",
+};
 
 export default async function AdminAccess({
   params,
@@ -50,42 +65,41 @@ export default async function AdminAccess({
     <div className="space-y-8">
       {searchParams.error === "notready" && (
         <Notice kind="error">
-          This portal is not complete yet, so the client cannot be invited.
+          This portal is not complete yet, so the client cannot be added.
           Finish the checklist on the Overview tab first.
           {me.role === "admin"
-            ? ' As an admin you can tick "Invite anyway" below.'
+            ? ' As an admin you can tick "Add anyway" below.'
             : ""}
         </Notice>
       )}
       {searchParams.error && searchParams.error !== "notready" && (
         <Notice kind="error">
-          That invitation could not be sent. Check the email address, and
-          whether the person already has an account.
+          {ERR[searchParams.error] ?? "Something went wrong. Please try again."}
         </Notice>
       )}
       {searchParams.ok && (
-        <Notice kind="success">
-          Invitation sent. They will get an email to set a password.
-        </Notice>
+        <Notice kind="success">{OK[searchParams.ok] ?? "Saved."}</Notice>
       )}
 
       <section>
         <h2 className="h-section">Client logins</h2>
         <form action={invite} className="card mb-4 grid gap-3 sm:grid-cols-6">
           <div className="sm:col-span-2">
-            <label className="label">Full name</label>
-            <input name="full_name" className="input" />
+            <label className="label" htmlFor="client-user-name">Full name</label>
+            <input id="client-user-name" name="full_name" className="input" />
           </div>
           <div className="sm:col-span-3">
-            <label className="label">Email</label>
-            <input name="email" type="email" required className="input" />
+            <label className="label" htmlFor="client-user-email">Email</label>
+            <input id="client-user-email" name="email" type="email" required className="input" />
           </div>
           <div className="flex items-end sm:col-span-1">
-            <SubmitButton pendingText="Inviting...">Invite</SubmitButton>
+            <SubmitButton pendingText="Adding..." className="btn w-full">
+              Add user
+            </SubmitButton>
           </div>
           {me.role === "admin" && (
             <label className="flex items-center gap-2 text-xs text-slate-600 sm:col-span-6">
-              <input type="checkbox" name="override" /> Invite anyway even if
+              <input type="checkbox" name="override" /> Add anyway even if
               the portal checklist is incomplete (recorded in the audit log)
             </label>
           )}
@@ -99,15 +113,21 @@ export default async function AdminAccess({
           {((users ?? []) as Profile[]).map((u) => (
             <div
               key={u.id}
-              className="flex items-center justify-between gap-3 p-4"
+              className="flex flex-wrap items-center justify-between gap-3 p-4"
             >
               <div>
                 <div className="font-semibold">{u.full_name || u.email}</div>
                 <div className="text-xs text-slate-500">{u.email}</div>
               </div>
-              <form action={revokeClientUser.bind(null, params.clientId, u.id)}>
-                <button className="btn-danger">Remove access</button>
-              </form>
+              <div className="flex items-center gap-3">
+                {u.must_change_password && <Pill tone="amber">Starting password</Pill>}
+                <form action={revokeClientUser.bind(null, params.clientId, u.id)}>
+                  <button className="btn-danger">Remove access</button>
+                </form>
+              </div>
+              {me.role === "admin" && (
+                <AccountEditor user={u} back={`/admin/clients/${params.clientId}/access`} />
+              )}
             </div>
           ))}
         </div>

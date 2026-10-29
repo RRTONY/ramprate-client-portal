@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { FiLock } from "react-icons/fi";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { setNotifyPreference } from "@/lib/admin-actions";
-import { PageTitle, Pill } from "@/components/ui";
+import { PageTitle } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function Account() {
@@ -13,15 +14,12 @@ export default async function Account() {
     .select("notify_email")
     .eq("id", profile.id)
     .single();
-  const { data: aal } =
-    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const mfaOn = aal?.nextLevel === "aal2";
 
   return (
     <>
       <PageTitle
         title="Your account"
-        subtitle="Sign-in security and email preferences."
+        subtitle="Your profile and email preferences."
       />
       <div className="grid max-w-3xl gap-6">
         <section className="card">
@@ -30,22 +28,10 @@ export default async function Account() {
             {profile.full_name || profile.email}
           </div>
           <div className="text-sm text-slate-600">{profile.email}</div>
-        </section>
-        <section className="card">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="h-section !mb-0">Two-step sign-in</h2>
-            <Pill tone={mfaOn ? "green" : "amber"}>{mfaOn ? "On" : "Off"}</Pill>
-          </div>
-          <p className="mb-3 text-sm text-slate-700">
-            Adds a 6 digit code from an authenticator app when you sign in. We
-            recommend it, because your portal holds contracts and project
-            details.
-          </p>
-          {!mfaOn && (
-            <Link href="/auth/mfa?enroll=1" className="btn">
-              Turn on two-step sign-in
-            </Link>
-          )}
+          <Link href="/auth/set-password" className="btn-secondary mt-4 inline-flex">
+            <FiLock aria-hidden className="h-4 w-4" />
+            Change password
+          </Link>
         </section>
         <section className="card">
           <h2 className="h-section">Email notifications</h2>
