@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logEvent } from "@/lib/audit";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PendingOverlay } from "@/components/PendingOverlay";
 import { Notice } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
@@ -24,10 +25,10 @@ async function staffSignIn(formData: FormData) {
     await supabase.auth.signOut();
     redirect("/admin/login?error=notstaff");
   }
-  await logEvent({
-    action: "auth.login",
-    detail: { area: "admin login page", role: profile.role },
-  });
+  await logEvent(
+    { action: "auth.login", detail: { area: "admin login page", role: profile.role } },
+    { id: data.user.id, email: data.user.email ?? null, role: profile.role },
+  );
   redirect("/admin");
 }
 
@@ -87,6 +88,7 @@ export default function AdminLogin({
                 className="input"
               />
             </div>
+            <PendingOverlay label="Opening your dashboard" />
             <SubmitButton pendingText="Signing in..." className="btn w-full">
               Sign in to admin
             </SubmitButton>

@@ -21,7 +21,9 @@ test.afterAll(async () => {
 
 async function makeUser(role: "client" | "staff", opts: { invited?: boolean } = {}) {
   const w = world();
-  const email = `e2e-${w.run}-${role}-${randomUUID().slice(0, 6)}@example.test`;
+  const tag = randomUUID().slice(0, 6);
+  const email = `e2e-${w.run}-${role}-${tag}@example.test`;
+  const name = `E2E ${role} ${tag}`;
   const password = `E2e-${randomUUID()}`;
   const db = svc();
   const { data, error } = opts.invited
@@ -32,11 +34,11 @@ async function makeUser(role: "client" | "staff", opts: { invited?: boolean } = 
   await db.from("profiles").upsert({
     id: data.user.id,
     email,
-    full_name: `E2E ${role}`,
+    full_name: name,
     role,
     client_id: role === "client" ? w.clientA.id : null,
   });
-  return { email, password, id: data.user.id };
+  return { email, password, name, id: data.user.id };
 }
 
 /**
@@ -185,10 +187,12 @@ test.describe("accounts an admin adds", () => {
     const admin = await browser.newPage({ storageState: ADMIN_SESSION });
     const access = `/admin/clients/${w.clientA.id}/access`;
     await admin.goto(access);
-    await admin.getByLabel("Full name").first().fill("E2E Added");
-    await admin.getByLabel("Email").first().fill(email);
-    await admin.getByLabel(/Add anyway/).check();
     await admin.getByRole("button", { name: "Add user" }).click();
+    const addForm = admin.getByRole("dialog", { name: "Add a client login" });
+    await addForm.getByLabel("Full name").fill("E2E Added");
+    await addForm.getByLabel("Email").fill(email);
+    await addForm.getByLabel(/Add anyway/).check();
+    await addForm.getByRole("button", { name: "Add user" }).click();
     await expect(admin.getByText("User added.")).toBeVisible({ timeout: 15_000 });
     const { data } = await svc().from("profiles").select("id").eq("email", email).single();
     created.push(data!.id);
@@ -204,9 +208,8 @@ test.describe("accounts an admin adds", () => {
     await expect(person).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
 
     await admin.goto(access);
-    const row = admin.locator("div.p-4").filter({ hasText: email });
-    await row.getByText("Edit").click();
-    await row.getByRole("button", { name: "Reset password" }).click();
+    await admin.getByRole("button", { name: "Edit E2E Added" }).click();
+    await admin.getByRole("dialog", { name: "Edit E2E Added" }).getByRole("button", { name: "Reset password" }).click();
     await expect(admin.getByText("Password reset to the starting password.")).toBeVisible({ timeout: 15_000 });
     await signInWith(person, email, STARTING);
     await chooseOwnPassword(person);
@@ -217,14 +220,15 @@ test.describe("accounts an admin adds", () => {
     const user = await makeUser("client");
     const admin = await browser.newPage({ storageState: ADMIN_SESSION });
     await admin.goto(`/admin/clients/${w.clientA.id}/access`);
-    const row = admin.locator("div.p-4").filter({ hasText: user.email });
-    await row.getByText("Edit").click();
+    await admin.getByRole("button", { name: `Edit ${user.name}` }).click();
+    const edit = admin.getByRole("dialog");
+    await expect(edit.getByLabel("Email")).toHaveValue(user.email);
     const renamed = user.email.replace("@", "-renamed@");
-    await row.getByLabel("Full name").fill("E2E Renamed");
-    await row.getByLabel("Email").fill(renamed);
-    await row.getByRole("button", { name: "Save" }).click();
+    await edit.getByLabel("Full name").fill("E2E Renamed");
+    await edit.getByLabel("Email").fill(renamed);
+    await edit.getByRole("button", { name: "Save changes" }).click();
     await expect(admin.getByText("Details saved.")).toBeVisible({ timeout: 15_000 });
-    await expect(admin.getByText("E2E Renamed")).toBeVisible();
+    await expect(admin.getByText("E2E Renamed", { exact: true })).toBeVisible();
 
     const person = await browser.newPage();
     await signInWith(person, renamed, user.password);

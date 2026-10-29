@@ -4,6 +4,8 @@ import { inviteStaffUser, removeStaffUser } from "@/lib/admin-actions";
 import { Notice, PageTitle, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { AccountEditor } from "@/components/AccountEditor";
+import { Modal, iconButtonDanger } from "@/components/Modal";
+import { FiTrash2, FiUserPlus } from "react-icons/fi";
 import type { Profile } from "@/lib/types";
 
 const OK: Record<string, string> = {
@@ -45,32 +47,42 @@ export default async function StaffUsers({
           {ERR[searchParams.error] ?? "Something went wrong. Please try again."}
         </Notice>
       )}
-      <form
-        action={inviteStaffUser}
-        className="card mb-6 grid gap-3 sm:grid-cols-6"
-      >
-        <h2 className="h-section sm:col-span-6 !mb-0">Add a user</h2>
-        <div className="sm:col-span-2">
-          <label className="label" htmlFor="staff-name">Full name</label>
-          <input id="staff-name" name="full_name" className="input" />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="label" htmlFor="staff-email">Email</label>
-          <input id="staff-email" name="email" type="email" required className="input" />
-        </div>
-        <div className="sm:col-span-1">
-          <label className="label" htmlFor="staff-role">Role</label>
-          <select id="staff-role" name="role" className="input">
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <div className="flex items-end sm:col-span-1">
-          <SubmitButton pendingText="Adding..." className="btn w-full">
-            Add user
-          </SubmitButton>
-        </div>
-      </form>
+      <div className="mb-4 flex justify-end">
+        <Modal
+          title="Add a user"
+          trigger={
+            <>
+              <FiUserPlus aria-hidden className="h-4 w-4" />
+              Add user
+            </>
+          }
+        >
+          <form action={inviteStaffUser} className="space-y-4">
+            <div>
+              <label className="label" htmlFor="staff-name">Full name</label>
+              <input id="staff-name" name="full_name" className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="staff-email">Email</label>
+              <input id="staff-email" name="email" type="email" required className="input" />
+            </div>
+            <div>
+              <label className="label" htmlFor="staff-role">Role</label>
+              <select id="staff-role" name="role" className="input">
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <p className="text-sm text-slate-600">
+              They sign in with this email and the starting password, then
+              choose their own.
+            </p>
+            <SubmitButton pendingText="Adding..." className="btn w-full">
+              Add user
+            </SubmitButton>
+          </form>
+        </Modal>
+      </div>
       <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
         {((data ?? []) as Profile[]).map((u) => (
           <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -78,16 +90,22 @@ export default async function StaffUsers({
               <div className="font-semibold">{u.full_name || u.email}</div>
               <div className="text-xs text-slate-500">{u.email}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {u.must_change_password && <Pill tone="amber">Starting password</Pill>}
               <Pill tone={u.role === "admin" ? "purple" : "gray"}>
                 {u.role}
               </Pill>
+              <AccountEditor user={u} back="/admin/users" />
               <form action={removeStaffUser.bind(null, u.id)}>
-                <button className="btn-danger">Remove</button>
+                <button
+                  className={iconButtonDanger}
+                  aria-label={`Remove ${u.full_name || u.email}`}
+                  title={`Remove ${u.full_name || u.email}`}
+                >
+                  <FiTrash2 aria-hidden className="h-4 w-4" />
+                </button>
               </form>
             </div>
-            <AccountEditor user={u} back="/admin/users" />
           </div>
         ))}
       </div>

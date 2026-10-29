@@ -45,7 +45,7 @@ export function AuthFinish({ next }: { next: string | null }) {
     );
   return (
     <div className="flex justify-center py-4 text-brand-600">
-      <Spinner label="Signing you in..." className="h-6 w-6" />
+      <Spinner label="Opening your portal" className="h-6 w-6" />
     </div>
   );
 }

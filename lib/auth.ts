@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
+import { cache } from "@/lib/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 
-/** Returns the signed-in user's profile, or redirects to /login. */
-export async function requireProfile(): Promise<Profile> {
+/**
+ * Returns the signed-in user's profile, or redirects to /login. Shared within one request, so a
+ * layout and its page check the session once instead of twice.
+ */
+export const requireProfile = cache(async (): Promise<Profile> => {
   const supabase = createClient();
   const {
     data: { user },
@@ -17,7 +21,7 @@ export async function requireProfile(): Promise<Profile> {
   if (!profile) redirect("/login?error=no-profile");
   if (profile.must_change_password) redirect("/auth/set-password?first=1");
   return profile as Profile;
-}
+});
 
 export async function requireStaff(): Promise<Profile> {
   const profile = await requireProfile();

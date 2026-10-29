@@ -9,6 +9,8 @@ import {
 import { Notice, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { AccountEditor } from "@/components/AccountEditor";
+import { Modal, iconButtonDanger } from "@/components/Modal";
+import { FiTrash2, FiUserMinus, FiUserPlus } from "react-icons/fi";
 import type { Profile } from "@/lib/types";
 
 const OK: Record<string, string> = {
@@ -83,27 +85,42 @@ export default async function AdminAccess({
 
       <section>
         <h2 className="h-section">Client logins</h2>
-        <form action={invite} className="card mb-4 grid gap-3 sm:grid-cols-6">
-          <div className="sm:col-span-2">
-            <label className="label" htmlFor="client-user-name">Full name</label>
-            <input id="client-user-name" name="full_name" className="input" />
-          </div>
-          <div className="sm:col-span-3">
-            <label className="label" htmlFor="client-user-email">Email</label>
-            <input id="client-user-email" name="email" type="email" required className="input" />
-          </div>
-          <div className="flex items-end sm:col-span-1">
-            <SubmitButton pendingText="Adding..." className="btn w-full">
-              Add user
-            </SubmitButton>
-          </div>
-          {me.role === "admin" && (
-            <label className="flex items-center gap-2 text-xs text-slate-600 sm:col-span-6">
-              <input type="checkbox" name="override" /> Add anyway even if
-              the portal checklist is incomplete (recorded in the audit log)
-            </label>
-          )}
-        </form>
+        <div className="mb-4 flex justify-end">
+          <Modal
+            title="Add a client login"
+            trigger={
+              <>
+                <FiUserPlus aria-hidden className="h-4 w-4" />
+                Add user
+              </>
+            }
+          >
+            <form action={invite} className="space-y-4">
+              <div>
+                <label className="label" htmlFor="client-user-name">Full name</label>
+                <input id="client-user-name" name="full_name" className="input" />
+              </div>
+              <div>
+                <label className="label" htmlFor="client-user-email">Email</label>
+                <input id="client-user-email" name="email" type="email" required className="input" />
+              </div>
+              {me.role === "admin" && (
+                <label className="flex items-start gap-2 text-sm text-slate-600">
+                  <input type="checkbox" name="override" className="mt-1" /> Add
+                  anyway even if the portal checklist is incomplete (recorded in
+                  the audit log)
+                </label>
+              )}
+              <p className="text-sm text-slate-600">
+                They sign in with this email and the starting password, then
+                choose their own.
+              </p>
+              <SubmitButton pendingText="Adding..." className="btn w-full">
+                Add user
+              </SubmitButton>
+            </form>
+          </Modal>
+        </div>
         <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
           {((users ?? []) as Profile[]).length === 0 && (
             <div className="p-5 text-sm text-slate-500">
@@ -119,15 +136,21 @@ export default async function AdminAccess({
                 <div className="font-semibold">{u.full_name || u.email}</div>
                 <div className="text-xs text-slate-500">{u.email}</div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {u.must_change_password && <Pill tone="amber">Starting password</Pill>}
+                {me.role === "admin" && (
+                  <AccountEditor user={u} back={`/admin/clients/${params.clientId}/access`} />
+                )}
                 <form action={revokeClientUser.bind(null, params.clientId, u.id)}>
-                  <button className="btn-danger">Remove access</button>
+                  <button
+                    className={iconButtonDanger}
+                    aria-label={`Remove access for ${u.full_name || u.email}`}
+                    title={`Remove access for ${u.full_name || u.email}`}
+                  >
+                    <FiTrash2 aria-hidden className="h-4 w-4" />
+                  </button>
                 </form>
               </div>
-              {me.role === "admin" && (
-                <AccountEditor user={u} back={`/admin/clients/${params.clientId}/access`} />
-              )}
             </div>
           ))}
         </div>
@@ -137,7 +160,7 @@ export default async function AdminAccess({
         <section>
           <h2 className="h-section">RampRate staff who can edit this portal</h2>
           <form action={assign} className="card mb-4 flex gap-3">
-            <select name="user_id" required className="input">
+            <select name="user_id" required aria-label="Staff user" className="input">
               <option value="">Choose a staff user...</option>
               {(
                 (staffAll ?? []) as {
@@ -170,7 +193,13 @@ export default async function AdminAccess({
                 <form
                   action={unassignStaff.bind(null, params.clientId, r.user_id)}
                 >
-                  <button className="btn-danger">Unassign</button>
+                  <button
+                    className={iconButtonDanger}
+                    aria-label={`Unassign ${r.profiles?.full_name || r.profiles?.email}`}
+                    title={`Unassign ${r.profiles?.full_name || r.profiles?.email}`}
+                  >
+                    <FiUserMinus aria-hidden className="h-4 w-4" />
+                  </button>
                 </form>
               </div>
             ))}

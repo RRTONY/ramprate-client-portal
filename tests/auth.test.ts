@@ -148,6 +148,14 @@ describe("logEvent", () => {
     assert.deepEqual(row.detail, {});
   });
 
+  it("uses a known actor without looking anyone up (saves two trips at sign-in)", async () => {
+    signIn("staff");
+    await logEvent({ action: "auth.login" }, { id: "u9", email: "u9@ramprate.com", role: "admin" });
+    const [row] = table("audit_log");
+    assert.deepEqual([row.actor_id, row.actor_email, row.actor_role], ["u9", "u9@ramprate.com", "admin"]);
+    assert.equal(db.calls.filter((c) => c.table === "profiles").length, 0);
+  });
+
   it("writes nothing when nobody is signed in", async () => {
     await logEvent({ action: "x" });
     assert.equal(table("audit_log").length, 0);

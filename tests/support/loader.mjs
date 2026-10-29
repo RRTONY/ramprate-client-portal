@@ -13,6 +13,7 @@ const FAKES = {
   "next/navigation": "fake-next.ts",
   "next/cache": "fake-next.ts",
   "next/headers": "fake-next.ts",
+  "@/lib/request-cache": "fake-request-cache.ts",
 };
 
 const isFile = (f) => {

@@ -10,15 +10,20 @@ import { AuthHashForward } from "@/components/AuthFinish";
 async function signIn(formData: FormData) {
   "use server";
   const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: String(formData.get("email") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
   });
-  if (error) redirect("/login?error=invalid");
-  await logEvent({
-    action: "auth.login",
-    detail: { area: "client login page" },
-  });
+  if (error || !data.user) redirect("/login?error=invalid");
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  await logEvent(
+    { action: "auth.login", detail: { area: "client login page" } },
+    { id: data.user.id, email: data.user.email ?? null, role: profile?.role ?? null },
+  );
   redirect("/");
 }
 

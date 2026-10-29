@@ -1,5 +1,6 @@
 import { FiKey, FiLock, FiMail } from "react-icons/fi";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PendingOverlay } from "@/components/PendingOverlay";
 import { Notice } from "@/components/ui";
 import { IconField } from "./IconField";
 import { StepHeader, linkClass } from "./StepHeader";
@@ -32,6 +33,7 @@ export function StepSignIn({ state, updateState, onNext, error, signIn }: StepPr
             autoComplete="current-password"
             icon={<FiLock aria-hidden className="h-4 w-4" />}
           />
+          <PendingOverlay label="Opening your portal" />
           <SubmitButton pendingText="Signing in..." className="btn w-full">
             Sign in
           </SubmitButton>
