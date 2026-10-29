@@ -19,6 +19,8 @@ export default async function globalTeardown() {
     if (paths.length) await svc.storage.from("client-documents").remove(paths);
   }
   await svc.from("clients").delete().in("id", ids);
+  // Team members added by tests (their emails are @example.test), even if a test timed out.
+  await svc.from("team_members").delete().like("email", "%@example.test");
   for (const u of [world.clientUser, world.adminUser]) await svc.auth.admin.deleteUser(u.id);
   rmSync(STATE_DIR, { recursive: true, force: true });
 }

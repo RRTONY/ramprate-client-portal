@@ -194,6 +194,7 @@ test.describe("accounts an admin adds", () => {
     await addForm.getByLabel(/Add anyway/).check();
     await addForm.getByRole("button", { name: "Add user" }).click();
     await expect(admin.getByText("User added.")).toBeVisible({ timeout: 15_000 });
+    await expect(admin.getByRole("dialog"), "the pop-up closes after saving").toHaveCount(0);
     const { data } = await svc().from("profiles").select("id").eq("email", email).single();
     created.push(data!.id);
 
@@ -247,6 +248,40 @@ test.describe("accounts an admin adds", () => {
     await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
     await signInWith(page, user.email, fresh);
     await expect(page).toHaveURL(new RegExp(`/portal/${w.clientA.id}$`), { timeout: 15_000 });
+  });
+});
+
+test.describe("team directory", () => {
+  test.use({ storageState: ADMIN_SESSION });
+
+  test("an admin adds a team member in the pop-up and switches them to inactive", async ({ page }) => {
+    const w = world();
+    const name = `E2E member ${w.run}-${randomUUID().slice(0, 4)}`;
+    const email = `e2e-${w.run}-member-${randomUUID().slice(0, 4)}@example.test`;
+    try {
+      await page.goto("/admin/team");
+      await page.getByRole("button", { name: "Add team member" }).click();
+      const add = page.getByRole("dialog", { name: "Add a team member" });
+      await add.getByRole("textbox", { name: "Name" }).fill(name);
+      await add.getByRole("textbox", { name: "Email" }).fill(email);
+      await add.getByRole("button", { name: "Add team member" }).click();
+      await expect(page.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(name, { exact: true })).toBeVisible();
+      await expect(page.getByRole("dialog"), "the pop-up closes after saving").toHaveCount(0);
+
+      await page.getByRole("button", { name: `Edit ${name}` }).click();
+      const edit = page.getByRole("dialog", { name: `Edit ${name}` });
+      const active = edit.getByRole("switch", { name: /Active/ });
+      await expect(active).toBeChecked();
+      await edit.getByText("Active", { exact: true }).click();
+      await expect(active).not.toBeChecked();
+      await edit.getByRole("button", { name: "Save changes" }).click();
+      await expect(page.getByText("Saved.")).toBeVisible({ timeout: 15_000 });
+      const row = page.locator("div.p-4").filter({ hasText: name });
+      await expect(row.getByText("Inactive")).toBeVisible();
+    } finally {
+      await svc().from("team_members").delete().eq("email", email);
+    }
   });
 });
 
