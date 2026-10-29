@@ -57,11 +57,11 @@ describe("requireProfile", () => {
     assert.equal(await redirectOf(requireProfile()), "/auth/mfa");
   });
 
-  it("sends staff and admins without a factor to set one up", async () => {
+  it("lets staff and admins without a factor straight in", async () => {
     for (const role of ["staff", "admin"] as const) {
       signIn(role);
       db.aal = { currentLevel: "aal1", nextLevel: "aal1" };
-      assert.equal(await redirectOf(requireProfile()), "/auth/mfa?enroll=1");
+      assert.equal((await requireProfile()).role, role);
     }
   });
 

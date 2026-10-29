@@ -34,7 +34,7 @@ Isolation is enforced in the database (Postgres row level security and storage p
 ## Setup
 
 1. **Supabase project.** Create one. Under Authentication, **disable "Allow new users to sign up"** (access is invite only). Set the Site URL to your portal URL.
-2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead; databases set up before 2026-10-29 also need `supabase/upgrade-2026-10-29-staff-two-step.sql`), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
+2. **Database.** In the SQL editor run `supabase/schema.sql` (if you ran an earlier version, run `supabase/upgrade-from-v1.sql` instead; databases set up before 2026-10-29 also need `supabase/upgrade-2026-10-29-staff-two-step.sql` and then `supabase/upgrade-2026-10-29-optional-two-step.sql`), then optionally `supabase/seed.sql` (loads the RampRate leadership roster; Kimberly is flagged as the admin contact, so `admin@ramprate.com` receives every query).
 3. **Email templates.** In Authentication > Email Templates, set the link in the Invite and Reset Password templates to:
    - Invite: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password`
    - Reset: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/auth/set-password`
@@ -49,7 +49,7 @@ Isolation is enforced in the database (Postgres row level security and storage p
 
 ## Security, admin controls and audit
 
-- **Separate admin sign-in:** the RampRate team signs in at `/admin/login`. A client account that tries it is signed straight back out. Staff and admins MUST set up two-step sign-in (authenticator app). Clients can opt in under Account, or set `REQUIRE_CLIENT_MFA=true` to require it for everyone.
+- **Separate admin sign-in:** the RampRate team signs in at `/admin/login`. A client account that tries it is signed straight back out. Two-step sign-in (authenticator app) is optional: anyone who sets it up must enter the code at sign-in, everyone else goes straight in with their password. Clients can opt in under Account; set `REQUIRE_CLIENT_MFA=true` to require it for everyone.
 - **What admins can do:** create and delete clients, edit everything in every portal, manage the team directory, invite or remove staff, assign staff to clients, invite or remove client logins, read the audit log. Staff can do the same inside only the clients assigned to them.
 - **What nobody can change: anything the client wrote.** Questions and replies written by a client cannot be edited or deleted by staff or admins (the database enforces it). Staff can reply and mark a question resolved.
 - **Audit log:** every sign-in, document view and download, edit, invite, email notification and status change is recorded with who, what and when (Pacific time in the viewer). The log is append only. Admins see everything at Audit log; each client has a History tab.
@@ -116,7 +116,7 @@ E2E_CONFIRM_STAGING=yes
 Setup then creates test clients and users named `e2e-...`, signs a client and an admin (with two-step sign-in) in through the real screens, and teardown deletes them afterwards (audit rows stay).
 
 - `e2e/signed-in.spec.ts`: what a client and an admin can and cannot see, and every portal and admin page loads with no errors or sideways scroll.
-- `e2e/flows.spec.ts`: invite links and password reset (custom and default email templates), first-time two-step setup for new staff from either sign-in page, and document uploads. Upload tests never tick "Email the client".
+- `e2e/flows.spec.ts`: invite links and password reset (custom and default email templates), new staff going straight to their dashboard from either sign-in page, and document uploads. Upload tests never tick "Email the client".
 
 ## Onboarding a new client
 

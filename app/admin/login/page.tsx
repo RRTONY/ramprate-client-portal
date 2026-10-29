@@ -51,7 +51,7 @@ export default function AdminLogin({
           </div>
           <h1 className="text-xl font-bold text-white">Portal admin</h1>
           <p className="mt-1 text-sm text-slate-400">
-            RampRate team only. Two-step verification is required after sign-in.
+            RampRate team only.
           </p>
         </div>
         <div className="rounded-xl bg-white p-6 shadow-xl">

@@ -3,10 +3,9 @@ import { randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { stagingEnabled, STATE_FILE, ADMIN_SESSION, type World } from "./support/env";
-import { totp, nextTotpWindow } from "./support/totp";
 
 // First-time and recovery flows real people go through: invite links, password reset,
-// two-step setup for new staff, and uploading documents. Staging only.
+// first sign-in for new staff, and uploading documents. Staging only.
 test.skip(!stagingEnabled(), "needs a staging Supabase project");
 
 const world = (): World => JSON.parse(readFileSync(STATE_FILE, "utf8"));
@@ -125,36 +124,35 @@ test.describe("password reset", () => {
 });
 
 test.describe("new staff member", () => {
-  // Waits up to 30 seconds for a fresh authenticator code.
-  test.describe.configure({ timeout: 75_000 });
-
-  async function enrolAndContinue(page: Page) {
-    const key = page.getByText(/^[A-Z2-7]{16,}$/);
-    await expect(key).toBeVisible({ timeout: 15_000 });
-    const secret = (await key.textContent())!.trim();
-    await nextTotpWindow();
-    await page.getByLabel("6 digit code").fill(totp(secret));
-    await page.getByRole("button", { name: "Turn on and continue" }).click();
-    await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
-    await expect(page.getByLabel("6 digit code")).toHaveCount(0);
+  /** Staff assigned to client A, so the dashboard proves the database gives them their rights. */
+  async function assignedStaff() {
+    const user = await makeUser("staff");
+    await svc().from("staff_clients").insert({ user_id: user.id, client_id: world().clientA.id });
+    return user;
   }
 
-  test("sets up two-step sign-in on first sign-in from the team page", async ({ page }) => {
-    const user = await makeUser("staff");
+  async function landsOnDashboard(page: Page) {
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
+    await expect(page.getByLabel("6 digit code")).toHaveCount(0);
+    await expect(page.getByText(world().clientA.name)).toBeVisible();
+  }
+
+  test("goes straight to the dashboard from the team sign-in page", async ({ page }) => {
+    const user = await assignedStaff();
     await page.goto("/admin/login");
     await page.getByLabel("Work email").fill(user.email);
     await page.getByLabel("Password").fill(user.password);
     await page.getByRole("button", { name: "Sign in to admin" }).click();
-    await enrolAndContinue(page);
+    await landsOnDashboard(page);
   });
 
-  test("is also taken to two-step setup from the client sign-in page", async ({ page }) => {
-    const user = await makeUser("staff");
+  test("goes straight to the dashboard from the client sign-in page", async ({ page }) => {
+    const user = await assignedStaff();
     await page.goto("/login");
     await page.getByLabel("Email").fill(user.email);
     await page.getByLabel("Password").fill(user.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await enrolAndContinue(page);
+    await landsOnDashboard(page);
   });
 });
 

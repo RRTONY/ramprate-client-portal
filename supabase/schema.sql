@@ -144,11 +144,14 @@ create index on public.queries (client_id, created_at desc);
 create index on public.query_messages (query_id, created_at);
 
 -- ===== Access helpers (security definer so policies can call them without recursion) =====
--- Staff and admin rights need a session that passed two-step sign-in (aal2), so a password alone
--- never opens client data, even straight from the API. Clients are not affected.
+-- Two-step sign-in is optional. Staff and admins who set it up only get their rights after
+-- entering the code (aal2), even straight from the API; those without a factor need only a password.
 create or replace function public.has_mfa() returns boolean
-language sql stable as $$
-  select coalesce(auth.jwt() ->> 'aal', '') = 'aal2';
+language sql stable security definer set search_path = public as $$
+  select coalesce(auth.jwt() ->> 'aal', '') = 'aal2'
+      or not exists (
+        select 1 from auth.mfa_factors where user_id = auth.uid() and status = 'verified'
+      );
 $$;
 
 create or replace function public.is_admin() returns boolean

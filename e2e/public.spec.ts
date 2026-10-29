@@ -124,10 +124,9 @@ test.describe("client sign-in page", () => {
 });
 
 test.describe("team sign-in page", () => {
-  test("shows the staff form and the two-step notice", async ({ page }) => {
+  test("shows the staff form", async ({ page }) => {
     await page.goto("/admin/login");
     await expect(page.getByRole("heading", { level: 1, name: "Portal admin" })).toBeVisible();
-    await expect(page.getByText("Two-step verification is required")).toBeVisible();
     await expect(page.getByLabel("Work email")).toBeVisible();
     await fieldsAreLabelled(page);
   });

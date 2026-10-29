@@ -59,7 +59,7 @@ async function makeUser(
   const { error: sErr } = await db.auth.signInWithPassword({ email, password });
   if (sErr) throw sErr;
   if (role !== "client") {
-    // Staff rights need two-step sign-in, as in the real console.
+    // These staff set up two-step sign-in, so their rights need the code.
     const factor = await must(db.auth.mfa.enroll({ factorType: "totp" }));
     const challenge = await must(db.auth.mfa.challenge({ factorId: factor.id }));
     await ok(db.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.id, code: totp(factor.totp.secret) }));
@@ -393,18 +393,34 @@ describe("row level security (staging Supabase)", { skip }, () => {
 
   // ---------- Two-step sign-in ----------
 
-  it("staff who skipped two-step sign-in cannot read client data straight from the API", async () => {
+  it("staff who set up two-step but skipped the code cannot read client data from the API", async () => {
     const db = await passwordOnly("staffA");
     assert.deepEqual(await must(db.from("documents").select("id").eq("client_id", ids.clientA)), []);
     assert.deepEqual(await must(db.from("clients").select("id")), []);
   });
 
-  it("admins who skipped two-step sign-in get no admin rights", async () => {
+  it("admins who set up two-step but skipped the code get no admin rights", async () => {
     const db = await passwordOnly("admin");
     assert.deepEqual(await must(db.from("clients").select("id")), []);
     assert.deepEqual(await must(db.from("audit_log").select("id")), []);
     const { error } = await db.from("clients").insert({ name: `rls-test-${run}-x`, slug: `rls-test-${run}-x` });
     assert.ok(error);
+  });
+
+  it("staff without two-step set up get their rights with a password alone", async () => {
+    const email = `rls-test-${run}-nocode@example.test`;
+    const { data } = await svc.auth.admin.createUser({ email, password, email_confirm: true });
+    const id = data.user!.id;
+    try {
+      await ok(svc.from("profiles").upsert({ id, email, full_name: "No code", role: "staff" }));
+      await ok(svc.from("staff_clients").insert({ user_id: id, client_id: ids.clientA }));
+      const db = createClient(URL!, ANON!, noSession);
+      await ok(db.auth.signInWithPassword({ email, password }));
+      const seen = await must(db.from("clients").select("id"));
+      assert.deepEqual(seen.map((c) => c.id), [ids.clientA]);
+    } finally {
+      await svc.auth.admin.deleteUser(id);
+    }
   });
 
   it("staff and admins can still read their own profile before entering the code", async () => {

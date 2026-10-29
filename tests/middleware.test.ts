@@ -77,16 +77,18 @@ describe("middleware: signed in", () => {
     assert.equal(await landing("/admin"), null);
   });
 
-  it("makes staff enrol in two-step sign-in", async () => {
+  it("lets staff and admins without a factor straight in", async () => {
     signIn("staff");
     db.aal = noFactor;
-    assert.equal(await landing("/admin"), "/auth/mfa?enroll=1");
+    assert.equal(await landing("/admin"), null);
+    signIn("admin");
+    assert.equal(await landing("/admin/users"), null);
   });
 
-  it("makes admins enrol in two-step sign-in", async () => {
+  it("still asks staff who set up two-step for their code", async () => {
     signIn("admin");
-    db.aal = noFactor;
-    assert.equal(await landing("/admin/users"), "/auth/mfa?enroll=1");
+    db.aal = enrolled;
+    assert.equal(await landing("/admin"), "/auth/mfa");
   });
 
   it("does not force clients to enrol by default", async () => {

@@ -65,10 +65,11 @@ working rules but has its own stack, hosting and security model. Setup and featu
   document via `logEvent()` in `lib/audit.ts`. Never add update or delete policies on `audit_log`.
 - **Sam is CC'd on every notification email.** That is enforced in `lib/email.ts`; don't bypass it.
 - **Documents stay private**: served only through short-lived signed links, never a public bucket URL.
-- **Invite only.** Never add a self sign-up path. Staff and admins must keep two-step sign-in
-  (enforced in `middleware.ts` **and** `requireProfile()` in `lib/auth.ts`). Middleware alone is not
-  enough: a page rendered from a server action's `redirect()` never passes through middleware, so the
-  page after a sign-in would show without the code. Keep both checks in step.
+- **Invite only.** Never add a self sign-up path. Two-step sign-in is optional (owner's decision,
+  2026-10-29), but anyone who set it up must enter the code. That is enforced in `middleware.ts`
+  **and** `requireProfile()` in `lib/auth.ts`, and in the database by `public.has_mfa()`. Middleware
+  alone is not enough: a page rendered from a server action's `redirect()` never passes through
+  middleware, so the page after a sign-in would show without the code. Keep all three in step.
 - **Never write secrets** into code, docs or commit messages. Reference the env var name only.
   New env var: add it to `.env.example`, `.env.local`, and Netlify's dashboard, and mention it in the README.
 - **Schema changes:** edit `supabase/schema.sql` for fresh installs **and** give the one-off SQL for
@@ -167,5 +168,10 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   After the two-step code, the browser now does a full page load (a client-side move left staff who
   signed in on the client page on a blank screen). Uploads now report a failed save instead of
   "uploaded". Admin header wraps on phones. Browser tests cover these flows and every page.
+- **2026-10-29:** The owner asked to remove the required two-step step for staff and admins: they
+  now go straight from password to dashboard. Trade-off accepted: a stolen staff password alone now
+  opens that person's clients. `public.has_mfa()` passes for users with no verified factor, so
+  people who chose to set up an authenticator still need the code. Existing databases:
+  `supabase/upgrade-2026-10-29-optional-two-step.sql`.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.

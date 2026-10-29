@@ -55,7 +55,7 @@ export async function middleware(request: NextRequest) {
   // Already signed in: skip the login pages.
   if (path === "/login" || path === "/admin/login") return go("/");
 
-  // Two-step sign-in (TOTP). Staff and admins MUST have it. Clients can opt in, or the
+  // Two-step sign-in (TOTP) is optional: anyone who set it up must enter the code, and the
   // company can require it for everyone with REQUIRE_CLIENT_MFA=true.
   const onMfaPage =
     path.startsWith("/auth/mfa") ||
@@ -67,19 +67,8 @@ export async function middleware(request: NextRequest) {
     if (aal) {
       if (aal.nextLevel === "aal2" && aal.currentLevel !== "aal2")
         return go("/auth/mfa");
-      if (aal.nextLevel === "aal1") {
-        // No factor enrolled yet. Is this person required to enrol?
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-        const mustEnrol =
-          profile?.role === "staff" ||
-          profile?.role === "admin" ||
-          process.env.REQUIRE_CLIENT_MFA === "true";
-        if (mustEnrol) return go("/auth/mfa?enroll=1");
-      }
+      if (aal.nextLevel === "aal1" && process.env.REQUIRE_CLIENT_MFA === "true")
+        return go("/auth/mfa?enroll=1");
     }
   }
   return response;
