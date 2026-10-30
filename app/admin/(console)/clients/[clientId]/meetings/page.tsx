@@ -7,6 +7,7 @@ import {
 import { fmtDateTime } from "@/lib/format";
 import type { Meeting } from "@/lib/types";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 
 export default async function AdminMeetings({
   params,
@@ -23,7 +24,7 @@ export default async function AdminMeetings({
 
   return (
     <div className="space-y-6">
-      <form action={add} className="card grid gap-3 sm:grid-cols-6">
+      <ActionForm action={add} className="card grid gap-3 sm:grid-cols-6">
         <h2 className="h-section sm:col-span-6 !mb-0">Schedule a meeting</h2>
         <div className="sm:col-span-3">
           <label className="label">Title</label>
@@ -49,7 +50,7 @@ export default async function AdminMeetings({
         <div className="sm:col-span-6">
           <SubmitButton pendingText="Adding...">Add meeting</SubmitButton>
         </div>
-      </form>
+      </ActionForm>
 
       <div className="space-y-3">
         {meetings.map((m) => (
@@ -61,7 +62,8 @@ export default async function AdminMeetings({
               </span>
             </summary>
             <div className="border-t border-slate-100 p-4">
-              <form
+              <ActionForm
+                keepValues
                 action={updateMeetingNotes.bind(null, params.clientId, m.id)}
                 className="space-y-3"
               >
@@ -94,7 +96,7 @@ export default async function AdminMeetings({
                   />
                 </div>
                 <SubmitButton>Save</SubmitButton>
-              </form>
+              </ActionForm>
               <form
                 action={deleteMeeting.bind(null, params.clientId, m.id)}
                 className="mt-3"

@@ -10,9 +10,11 @@ import {
   DOC_CATEGORIES,
   PROGRESS_STATUSES,
   UPDATE_KINDS,
+  type ActionResult,
   type Client,
+  type Profile,
 } from "@/lib/types";
-import { logEvent } from "@/lib/audit";
+import { logEvent, type AuditActor } from "@/lib/audit";
 import { notifyClientUsers } from "@/lib/notify";
 import { getReadiness } from "@/lib/readiness";
 import { safeNext } from "@/lib/links";
@@ -31,6 +33,29 @@ const adminPath = (clientId: string, tab = "") =>
 function safeHttpsUrl(v: string): string | null {
   return /^https:\/\/[^\s]+$/i.test(v) ? v : null;
 }
+
+const MAX_TITLE = 200;
+const MAX_TEXT = 5000;
+const SAVE_FAILED: ActionResult = { error: "That did not save. Please try again." };
+
+/** A friendly message for the first field over its limit. */
+function tooLong(fields: [label: string, value: string, max: number][]): ActionResult {
+  const hit = fields.find(([, v, max]) => v.length > max);
+  if (!hit) return undefined;
+  return {
+    error: `${hit[0]} is too long (${hit[1].length.toLocaleString("en-US")} characters). Please keep it under ${hit[2].toLocaleString("en-US")}.`,
+  };
+}
+
+/** A meeting place is plain text ("Room 4") or an http(s) link. Other link types (javascript:, data:) are refused. */
+function badLocation(v: string): ActionResult {
+  if (/^[a-z][a-z0-9+.-]*:\S/i.test(v) && !/^https?:\/\//i.test(v))
+    return { error: "The meeting link must start with https:// (or http://)." };
+  return undefined;
+}
+
+/** The audit actor for a profile we already loaded, so logging skips two database trips. */
+const actorOf = (p: Profile): AuditActor => ({ id: p.id, email: p.email, role: p.role });
 
 /** Marks the portal as freshly updated. Shown to the client as "Last updated". */
 async function touch(clientId: string) {
@@ -164,27 +189,38 @@ export async function updateClientAction(clientId: string, formData: FormData) {
 }
 
 // ---------- Progress & next steps ----------
-export async function addProgress(clientId: string, formData: FormData) {
-  await assertCanManage(clientId);
+export async function addProgress(
+  clientId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
   const title = s(formData, "title");
-  if (!title) return;
-  await createClient()
+  const detail = s(formData, "detail");
+  if (!title) return { error: "Please add a title." };
+  const invalid = tooLong([
+    ["Title", title, MAX_TITLE],
+    ["Detail", detail, MAX_TEXT],
+    ["Owner", s(formData, "owner_name"), MAX_TITLE],
+  ]);
+  if (invalid) return invalid;
+  const { error } = await createClient()
     .from("progress_items")
     .insert({
       client_id: clientId,
       title,
-      detail: s(formData, "detail"),
+      detail,
       status: pick(s(formData, "status"), PROGRESS_STATUSES, "upcoming"),
       due_date: orNull(s(formData, "due_date")),
       owner_name: orNull(s(formData, "owner_name")),
     });
-  await touch(clientId);
-  await logEvent({
-    action: "progress.create",
-    entity: "progress_item",
-    clientId,
-    detail: { title },
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      { action: "progress.create", entity: "progress_item", clientId, detail: { title } },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/progress"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -193,13 +229,22 @@ export async function updateProgress(
   clientId: string,
   id: string,
   formData: FormData,
-) {
-  await assertCanManage(clientId);
-  await createClient()
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const title = s(formData, "title");
+  const detail = s(formData, "detail");
+  if (!title) return { error: "Please add a title." };
+  const invalid = tooLong([
+    ["Title", title, MAX_TITLE],
+    ["Detail", detail, MAX_TEXT],
+    ["Owner", s(formData, "owner_name"), MAX_TITLE],
+  ]);
+  if (invalid) return invalid;
+  const { error } = await createClient()
     .from("progress_items")
     .update({
-      title: s(formData, "title"),
-      detail: s(formData, "detail"),
+      title,
+      detail,
       status: pick(s(formData, "status"), PROGRESS_STATUSES, "upcoming"),
       due_date: orNull(s(formData, "due_date")),
       owner_name: orNull(s(formData, "owner_name")),
@@ -207,14 +252,20 @@ export async function updateProgress(
     })
     .eq("id", id)
     .eq("client_id", clientId);
-  await touch(clientId);
-  await logEvent({
-    action: "progress.update",
-    entity: "progress_item",
-    entityId: id,
-    clientId,
-    detail: { title: s(formData, "title"), status: s(formData, "status") },
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      {
+        action: "progress.update",
+        entity: "progress_item",
+        entityId: id,
+        clientId,
+        detail: { title, status: s(formData, "status") },
+      },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/progress"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -237,41 +288,57 @@ export async function deleteProgress(clientId: string, id: string) {
 }
 
 // ---------- Activity timeline ----------
-export async function addUpdate(clientId: string, formData: FormData) {
+export async function addUpdate(
+  clientId: string,
+  formData: FormData,
+): Promise<ActionResult> {
   const profile = await assertCanManage(clientId);
   const title = s(formData, "title");
-  if (!title) return;
-  await createClient()
+  const body = s(formData, "body");
+  if (!title) return { error: "Please add a title." };
+  const invalid = tooLong([
+    ["Title", title, MAX_TITLE],
+    ["Details", body, MAX_TEXT],
+  ]);
+  if (invalid) return invalid;
+  const published = formData.get("published") === "on";
+  const { error } = await createClient()
     .from("updates")
     .insert({
       client_id: clientId,
       title,
-      body: s(formData, "body"),
+      body,
       kind: pick(s(formData, "kind"), UPDATE_KINDS, "update"),
       occurred_on:
         s(formData, "occurred_on") || new Date().toISOString().slice(0, 10),
-      published: formData.get("published") === "on",
+      published,
       created_by: profile.id,
     });
-  await touch(clientId);
-  await logEvent({
-    action: "update.create",
-    entity: "update",
-    clientId,
-    detail: { title, published: formData.get("published") === "on" },
-  });
-  if (formData.get("published") === "on" && formData.get("notify") === "on") {
+  if (error) return SAVE_FAILED;
+  const actor = actorOf(profile);
+  const emailClient = async () => {
     const res = await notifyClientUsers(clientId, `New update: ${title}`, [
       title,
-      ...(s(formData, "body") ? [s(formData, "body").slice(0, 300)] : []),
+      ...(body ? [body.slice(0, 300)] : []),
     ]);
-    await logEvent({
-      action: "email.client_notification",
-      entity: "update",
-      clientId,
-      detail: { sent: res.sent },
-    });
-  }
+    await logEvent(
+      {
+        action: "email.client_notification",
+        entity: "update",
+        clientId,
+        detail: { sent: res.sent },
+      },
+      actor,
+    );
+  };
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      { action: "update.create", entity: "update", clientId, detail: { title, published } },
+      actor,
+    ),
+    published && formData.get("notify") === "on" ? emailClient() : null,
+  ]);
   revalidatePath(adminPath(clientId, "/updates"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -316,28 +383,43 @@ export async function deleteUpdate(clientId: string, id: string) {
 }
 
 // ---------- Meetings (times entered in Pacific Time) ----------
-export async function addMeeting(clientId: string, formData: FormData) {
-  await assertCanManage(clientId);
+export async function addMeeting(
+  clientId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
   const title = s(formData, "title");
   const when = s(formData, "starts_at");
-  if (!title || !when) return;
-  await createClient()
+  const location = s(formData, "location");
+  const agenda = s(formData, "agenda");
+  const notes = s(formData, "notes");
+  if (!title || !when) return { error: "Please add a title and a date and time." };
+  const invalid =
+    tooLong([
+      ["Title", title, MAX_TITLE],
+      ["Meeting link or location", location, 1000],
+      ["Agenda", agenda, MAX_TEXT],
+      ["Notes", notes, MAX_TEXT],
+    ]) ?? badLocation(location);
+  if (invalid) return invalid;
+  const { error } = await createClient()
     .from("meetings")
     .insert({
       client_id: clientId,
       title,
       starts_at: pacificLocalToISO(when),
-      location: orNull(s(formData, "location")),
-      agenda: s(formData, "agenda"),
-      notes: s(formData, "notes"),
+      location: orNull(location),
+      agenda,
+      notes,
     });
-  await touch(clientId);
-  await logEvent({
-    action: "meeting.create",
-    entity: "meeting",
-    clientId,
-    detail: { title, when },
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      { action: "meeting.create", entity: "meeting", clientId, detail: { title, when } },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/meetings"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -346,24 +428,31 @@ export async function updateMeetingNotes(
   clientId: string,
   id: string,
   formData: FormData,
-) {
-  await assertCanManage(clientId);
-  await createClient()
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const location = s(formData, "location");
+  const agenda = s(formData, "agenda");
+  const notes = s(formData, "notes");
+  const invalid =
+    tooLong([
+      ["Link or location", location, 1000],
+      ["Agenda", agenda, MAX_TEXT],
+      ["Notes", notes, MAX_TEXT],
+    ]) ?? badLocation(location);
+  if (invalid) return invalid;
+  const { error } = await createClient()
     .from("meetings")
-    .update({
-      agenda: s(formData, "agenda"),
-      notes: s(formData, "notes"),
-      location: orNull(s(formData, "location")),
-    })
+    .update({ agenda, notes, location: orNull(location) })
     .eq("id", id)
     .eq("client_id", clientId);
-  await touch(clientId);
-  await logEvent({
-    action: "meeting.update",
-    entity: "meeting",
-    entityId: id,
-    clientId,
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      { action: "meeting.update", entity: "meeting", entityId: id, clientId },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/meetings"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }

@@ -9,7 +9,9 @@ import {
   sendClientReplyNotification,
   sendQueryNotification,
 } from "@/lib/email";
-import { QUERY_CATEGORIES } from "@/lib/types";
+import { QUERY_CATEGORIES, type ActionResult } from "@/lib/types";
+
+const MAX_REPLY = 5000;
 
 /** Engagement owner + active admin contacts for a client. Sam is CC'd separately by the mailer. */
 async function routingRecipients(
@@ -93,14 +95,18 @@ export async function replyToQuery(
   clientId: string,
   queryId: string,
   formData: FormData,
-) {
+): Promise<ActionResult> {
   const profile = await requireProfile();
   const body = String(formData.get("body") ?? "").trim();
   const isStaff = profile.role !== "client";
   const back = isStaff
     ? `/admin/clients/${clientId}/queries/${queryId}`
     : `/portal/${clientId}/queries/${queryId}`;
-  if (!body) redirect(back);
+  if (!body) return { error: "Please write a reply first." };
+  if (body.length > MAX_REPLY)
+    return {
+      error: `That reply is too long (${body.length.toLocaleString("en-US")} characters). Please keep it under ${MAX_REPLY.toLocaleString("en-US")}.`,
+    };
 
   const supabase = createClient();
   const { data: q } = await supabase
@@ -111,7 +117,7 @@ export async function replyToQuery(
     .single();
   if (!q) redirect(back);
 
-  await supabase
+  const { error } = await supabase
     .from("query_messages")
     .insert({
       query_id: queryId,
@@ -119,55 +125,57 @@ export async function replyToQuery(
       author_id: profile.id,
       body,
     });
-  await supabase
-    .from("queries")
-    .update({ status: isStaff ? "answered" : "open" })
-    .eq("id", queryId);
+  if (error) return { error: "Your reply did not send. Please try again." };
 
-  if (isStaff) {
-    const { data: creator } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("id", q.created_by)
-      .single();
-    const { data: client } = await supabase
-      .from("clients")
-      .select("name")
-      .eq("id", clientId)
-      .single();
-    if (creator?.email) {
-      await sendClientReplyNotification({
-        to: creator.email,
+  const notify = async () => {
+    if (isStaff) {
+      const [{ data: creator }, { data: client }] = await Promise.all([
+        supabase.from("profiles").select("email").eq("id", q.created_by).single(),
+        supabase.from("clients").select("name").eq("id", clientId).single(),
+      ]);
+      if (creator?.email) {
+        await sendClientReplyNotification({
+          to: creator.email,
+          clientId,
+          clientName: client?.name ?? "",
+          subject: q.subject,
+          body,
+          fromName: profile.full_name || "RampRate",
+        });
+      }
+    } else {
+      const { clientName, to } = await routingRecipients(clientId);
+      await sendQueryNotification({
         clientId,
-        clientName: client?.name ?? "",
+        clientName,
+        queryId,
         subject: q.subject,
+        category: q.category,
         body,
-        fromName: profile.full_name || "RampRate",
+        fromName: profile.full_name || profile.email,
+        fromEmail: profile.email,
+        isReply: true,
+        to,
       });
     }
-  } else {
-    const { clientName, to } = await routingRecipients(clientId);
-    await sendQueryNotification({
-      clientId,
-      clientName,
-      queryId,
-      subject: q.subject,
-      category: q.category,
-      body,
-      fromName: profile.full_name || profile.email,
-      fromEmail: profile.email,
-      isReply: true,
-      to,
-    });
-  }
-  await logEvent({
-    action: isStaff ? "query.staff_reply" : "query.client_reply",
-    entity: "query",
-    entityId: queryId,
-    clientId,
-  });
+  };
+  await Promise.all([
+    supabase
+      .from("queries")
+      .update({ status: isStaff ? "answered" : "open" })
+      .eq("id", queryId),
+    notify(),
+    logEvent(
+      {
+        action: isStaff ? "query.staff_reply" : "query.client_reply",
+        entity: "query",
+        entityId: queryId,
+        clientId,
+      },
+      { id: profile.id, email: profile.email, role: profile.role },
+    ),
+  ]);
   revalidatePath(back);
-  redirect(back);
 }
 
 export async function setQueryStatus(

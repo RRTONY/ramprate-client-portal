@@ -109,7 +109,7 @@ export function DocumentUploadForm({
           copy (shows a Signed badge)
         </label>
         <label className="flex items-center gap-2">
-          <input type="checkbox" name="notify" defaultChecked /> Email the
+          <input type="checkbox" name="notify" /> Email the
           client about this (Sam is CC'd)
         </label>
       </div>
