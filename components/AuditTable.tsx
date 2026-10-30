@@ -41,6 +41,8 @@ export async function AuditTable({
   let q = supabase
     .from("audit_log")
     .select("*, clients(name)")
+    // Browser-test accounts (…@example.test) leave rows behind that can never be deleted; hide them.
+    .or("actor_email.is.null,actor_email.not.like.*@example.test")
     .order("at", { ascending: false })
     .limit(limit);
   if (clientId) q = q.eq("client_id", clientId);

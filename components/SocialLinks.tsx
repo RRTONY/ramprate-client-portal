@@ -1,7 +1,7 @@
 const LINKEDIN =
   process.env.NEXT_PUBLIC_LINKEDIN_URL ||
   "https://www.linkedin.com/company/ramprate";
-const X = process.env.NEXT_PUBLIC_X_URL || "https://twitter.com/ramprate";
+const X = process.env.NEXT_PUBLIC_X_URL || "https://x.com/ramprate";
 
 function LinkedInIcon() {
   return (

@@ -3,6 +3,7 @@ import { fmtDateTime } from "@/lib/format";
 import { replyToQuery, setQueryStatus } from "@/lib/query-actions";
 import { Notice, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 import { Avatar } from "@/components/Avatar";
 import type { QueryMessage, QueryRow } from "@/lib/types";
 
@@ -107,13 +108,13 @@ export async function QueryThread({
       </div>
 
       {query.status !== "closed" && (
-        <form action={reply} className="card mt-5 space-y-3">
+        <ActionForm action={reply} className="card mt-5 space-y-3" savedText="Reply sent">
           <label className="label" htmlFor="body">
             {staff ? "Reply to the client" : "Add a reply"}
           </label>
           <textarea id="body" name="body" required rows={4} className="input" />
           <SubmitButton pendingText="Sending...">Send reply</SubmitButton>
-        </form>
+        </ActionForm>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import {
 import { PROGRESS_LABEL } from "@/lib/format";
 import { PROGRESS_STATUSES, type ProgressItem } from "@/lib/types";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 
 function StatusSelect({ value }: { value?: string }) {
   return (
@@ -35,7 +36,7 @@ export default async function AdminProgress({
 
   return (
     <div className="space-y-6">
-      <form action={add} className="card grid gap-3 sm:grid-cols-6">
+      <ActionForm action={add} className="card grid gap-3 sm:grid-cols-6">
         <h2 className="h-section sm:col-span-6 !mb-0">
           Add progress item or next step
         </h2>
@@ -62,7 +63,7 @@ export default async function AdminProgress({
         <div className="flex items-end sm:col-span-2">
           <SubmitButton pendingText="Adding...">Add</SubmitButton>
         </div>
-      </form>
+      </ActionForm>
 
       <div className="space-y-3">
         {items.map((p) => (
@@ -75,7 +76,8 @@ export default async function AdminProgress({
               </span>
             </summary>
             <div className="border-t border-slate-100 p-4">
-              <form
+              <ActionForm
+                keepValues
                 action={updateProgress.bind(null, params.clientId, p.id)}
                 className="grid gap-3 sm:grid-cols-6"
               >
@@ -121,7 +123,7 @@ export default async function AdminProgress({
                 <div className="flex items-end sm:col-span-2">
                   <SubmitButton>Save</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
               <form
                 action={deleteProgress.bind(null, params.clientId, p.id)}
                 className="mt-3"

@@ -1,5 +1,8 @@
 export type Role = "client" | "staff" | "admin";
 
+/** What a form's server action returns: nothing on success, a message to show on failure. */
+export type ActionResult = { error: string } | undefined;
+
 export type Profile = {
   id: string;
   full_name: string;

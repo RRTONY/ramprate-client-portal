@@ -87,7 +87,14 @@ working rules but has its own stack, hosting and security model. Setup and featu
   `.dark` class with overrides in `globals.css`; check any new surface in dark mode too.
 - Images: `<Image>` from `next/image`. Logo: `components/Logo.tsx` (static import, works on Netlify).
 - Forms post to server actions in `lib/admin-actions.ts` / `lib/query-actions.ts` and redirect with
-  `?ok=1` / `?error=<code>`; show messages with `Notice`.
+  `?ok=1` / `?error=<code>`; show messages with `Notice`. Forms that stay on the same page (add a
+  meeting, update, progress item, reply) use `components/ActionForm.tsx` instead: the action returns
+  `{ error }` or nothing, and the form clears and shows "Saved" itself (a redirect to the same page
+  would leave the old values in the fields). Check the insert's `error` before logging success.
+- **Speed:** each Supabase call is a network trip. Pass `actorOf(profile)` to `logEvent()` when the
+  profile is already loaded, and run independent steps (touch, audit row, email) with `Promise.all`.
+- Free-text limits: titles 200 characters, long text 5,000, with a friendly error. Meeting
+  locations may be plain text, but anything shaped like a link must be http(s).
 - **Netlify limits:** function request bodies over about 4 MB are refused, so files never go through
   a server action. Uploads go browser to Supabase Storage (`components/DocumentUploadForm.tsx`), then
   the server records them after checking the object. Keep any new upload on this pattern.
@@ -176,5 +183,10 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   and `public.password_ok()` gives the account no rights in the database until then. Only the server
   clears the flag (service key), after Supabase accepted the new password. People change only their
   own password; admins can edit anyone's name and email or reset them to the starting password.
+- **2026-10-31:** Launch review fixes: add forms clear and show "Saved", real save errors are shown,
+  fewer database trips per save, "Email the client" now unticked by default, 5,000 character limits,
+  http(s)-only meeting links, security headers in `next.config.mjs`, audit log hides `@example.test`
+  rows. **Gotcha:** `.env.test`'s E2E project was the same as the live one, so signed-in browser
+  tests wrote ~520 rows into the live audit log. Point E2E_* at a separate staging project.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.

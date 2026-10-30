@@ -52,8 +52,9 @@ Isolation is enforced in the database (Postgres row level security and storage p
 - **Separate admin sign-in:** the RampRate team signs in at `/admin/login`. A client account that tries it is signed straight back out. There is no two-step code: everyone signs in with email and password and goes straight to their dashboard. Only people an admin (or assigned staff, for client logins) adds can sign in.
 - **What admins can do:** create and delete clients, edit everything in every portal, manage the team directory, add or remove staff, assign staff to clients, add or remove client logins, edit anyone's name and email, reset anyone's password to the starting password, read the audit log. Staff can do the same inside only the clients assigned to them.
 - **What nobody can change: anything the client wrote.** Questions and replies written by a client cannot be edited or deleted by staff or admins (the database enforces it). Staff can reply and mark a question resolved.
-- **Audit log:** every sign-in, document view and download, edit, invite, email notification and status change is recorded with who, what and when (Pacific time in the viewer). The log is append only. Admins see everything at Audit log; each client has a History tab.
+- **Audit log:** every sign-in, document view and download, edit, invite, email notification and status change is recorded with who, what and when (Pacific time in the viewer). The log is append only. Admins see everything at Audit log; each client has a History tab. Rows made by browser-test accounts (`...@example.test`) are hidden from both views.
 - **Accounts and passwords:** an admin adds a person with name and email (Staff access, or a client's Access tab). The account starts on `DEFAULT_USER_PASSWORD`; nothing is emailed, the admin tells the person. At first sign-in they must choose their own password, and until then the database gives the account no access at all. Everyone can change their own password (Account page for clients, "Change password" in the admin header). Admins can edit anyone's name and email, or reset them back to the starting password. All of it is in the audit log.
+- **Security headers:** set for every page in `next.config.mjs` (HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy and a light Content-Security-Policy that blocks framing, plugins and off-site form posts).
 - **"Nothing blank" rule:** a portal has an 11 point readiness checklist on its Overview tab. Client logins cannot be added until it is complete. Admins can override, and the override is logged.
 
 ## Emails to clients
@@ -105,7 +106,7 @@ They create test clients and users named `rls-test-...`, check that nobody can s
 
 By default the app points at an unreachable Supabase address, so only signed-out screens are tested: redirects to sign in, the sign-in and team sign-in pages, error messages, the privacy page, labels, skip link, sideways scroll and dark mode. No email is ever sent.
 
-Signed-in flows run only against a staging project. Set these (for example in your shell, never committed), with `supabase/schema.sql` applied to that project:
+Signed-in flows run only against a staging project, **never the live one** (test rows in the audit log cannot be deleted). Set these (for example in your shell, never committed), with `supabase/schema.sql` applied to that project:
 
 ```
 E2E_SUPABASE_URL=...

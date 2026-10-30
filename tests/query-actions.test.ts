@@ -138,13 +138,12 @@ describe("replyToQuery", () => {
     });
   });
 
-  const reply = (body: string) =>
-    redirectOf(replyToQuery(CLIENT_A, QID, form({ body })));
+  const reply = (body: string) => replyToQuery(CLIENT_A, QID, form({ body }));
 
   it("staff reply: saves it, marks answered, emails the client with Sam CC'd", async () => {
     const me = signIn("staff", { manages: [CLIENT_A] });
-    const url = await reply("Due on the 1st.");
-    assert.equal(url, `/admin/clients/${CLIENT_A}/queries/${QID}`);
+    assert.equal(await reply("Due on the 1st."), undefined);
+    assert.ok(nav.revalidated.includes(`/admin/clients/${CLIENT_A}/queries/${QID}`));
     const [m] = table("query_messages");
     assert.equal(m.body, "Due on the 1st.");
     assert.equal(m.author_id, me.id);
@@ -158,8 +157,8 @@ describe("replyToQuery", () => {
   it("client reply: reopens the query and notifies RampRate", async () => {
     table("queries")[0].status = "answered";
     signIn("client");
-    const url = await reply("Thanks, one more thing");
-    assert.equal(url, `/portal/${CLIENT_A}/queries/${QID}`);
+    assert.equal(await reply("Thanks, one more thing"), undefined);
+    assert.ok(nav.revalidated.includes(`/portal/${CLIENT_A}/queries/${QID}`));
     assert.equal(table("queries")[0].status, "open");
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].to, ["owner@ramprate.com", "admin1@ramprate.com"]);
@@ -167,9 +166,16 @@ describe("replyToQuery", () => {
     assert.deepEqual(auditActions(), ["query.client_reply"]);
   });
 
-  it("ignores an empty reply", async () => {
+  it("refuses an empty reply with a message", async () => {
     signIn("client");
-    await reply("   ");
+    assert.match((await reply("   "))!.error, /write a reply/);
+    assert.equal(table("query_messages").length, 0);
+    assert.equal(sent.length, 0);
+  });
+
+  it("refuses a reply over 5,000 characters and keeps nothing", async () => {
+    signIn("staff", { manages: [CLIENT_A] });
+    assert.match((await reply("x".repeat(5001)))!.error, /too long \(5,001 characters\)/);
     assert.equal(table("query_messages").length, 0);
     assert.equal(sent.length, 0);
   });

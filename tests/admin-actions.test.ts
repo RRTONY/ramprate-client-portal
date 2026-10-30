@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { db, seed, table, callsTo } from "./support/fake-supabase.ts";
+import { db, seed, table, callsTo, on } from "./support/fake-supabase.ts";
 import { redirectOf, nav, RedirectSignal } from "./support/fake-next.ts";
 import {
   CLIENT_A,
@@ -296,11 +296,24 @@ describe("progress items", () => {
     assert.deepEqual(auditActions(), ["progress.create"]);
   });
 
-  it("ignores an item without a title", async () => {
+  it("refuses an item without a title", async () => {
     signIn("admin");
-    await actions.addProgress(CLIENT_A, form({ title: " " }));
+    assert.match((await actions.addProgress(CLIENT_A, form({ title: " " })))!.error, /title/);
     assert.equal(table("progress_items").length, 0);
     assert.deepEqual(auditActions(), []);
+  });
+
+  it("reports a failed save instead of logging it as done", async () => {
+    signIn("admin");
+    on("progress_items", "insert", { data: null, error: { message: "RLS" } });
+    assert.match((await actions.addProgress(CLIENT_A, form({ title: "x" })))!.error, /did not save/);
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("logs with the profile it already has, without asking the database again", async () => {
+    signIn("admin");
+    assert.equal(await actions.addProgress(CLIENT_A, form({ title: "x" })), undefined);
+    assert.equal(callsTo("profiles", "select").length, 1);
   });
 
   it("updates and deletes only within the given client", async () => {
@@ -392,9 +405,39 @@ describe("meetings", () => {
 
   it("needs both a title and a time", async () => {
     signIn("admin");
-    await actions.addMeeting(CLIENT_A, form({ title: "Sync" }));
-    await actions.addMeeting(CLIENT_A, form({ starts_at: "2026-11-02T09:00" }));
+    assert.ok((await actions.addMeeting(CLIENT_A, form({ title: "Sync" })))?.error);
+    assert.ok((await actions.addMeeting(CLIENT_A, form({ starts_at: "2026-11-02T09:00" })))?.error);
     assert.equal(table("meetings").length, 0);
+  });
+
+  it("refuses an agenda over 5,000 characters with a friendly message", async () => {
+    signIn("admin");
+    const res = await actions.addMeeting(
+      CLIENT_A,
+      form({ title: "Sync", starts_at: "2026-11-02T09:00", agenda: "a".repeat(20000) }),
+    );
+    assert.equal(res!.error, "Agenda is too long (20,000 characters). Please keep it under 5,000.");
+    assert.equal(table("meetings").length, 0);
+  });
+
+  it("only saves http(s) links, but allows a plain place name", async () => {
+    signIn("admin");
+    const add = (location: string) =>
+      actions.addMeeting(CLIENT_A, form({ title: "Sync", starts_at: "2026-11-02T09:00", location }));
+    for (const bad of ["javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,x", "ftp://x"])
+      assert.match((await add(bad))!.error, /must start with https/, bad);
+    assert.equal(table("meetings").length, 0);
+    for (const ok of ["https://zoom.us/j/1", "http://meet.example.test", "Room 4: east wing", "HQ, Palo Alto"])
+      assert.equal(await add(ok), undefined, ok);
+    assert.equal(table("meetings").length, 4);
+  });
+
+  it("checks the link and lengths when editing too", async () => {
+    signIn("admin");
+    seed("meetings", { id: "m1", client_id: CLIENT_A, location: null });
+    assert.ok((await actions.updateMeetingNotes(CLIENT_A, "m1", form({ location: "javascript:x" })))?.error);
+    assert.ok((await actions.updateMeetingNotes(CLIENT_A, "m1", form({ notes: "n".repeat(5001) })))?.error);
+    assert.equal(table("meetings")[0].location, null);
   });
 
   it("updates notes and deletes within the given client", async () => {
