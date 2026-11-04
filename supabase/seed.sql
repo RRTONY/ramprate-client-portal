@@ -7,7 +7,7 @@ insert into public.team_members (full_name, title, email, linkedin_url, phone, i
   ('Rob Holmes', 'Grants, Business Development', 'rob@ramprate.com', 'https://www.linkedin.com/in/rob-holmes-7a479016/', null, false, 'https://calendly.com/rob-ramprate'),
   ('Satyajeet Patnayak', 'Chief of Staff', 'sam@ramprate.com', 'https://www.linkedin.com/in/satyajeetpatnayak/', '+91 90317 16589', false, 'https://calendly.com/ramprate/15-min-intro-call-with-sam-ramprate'),
   ('Sai Narendra', 'Bookkeeper', 'sai@ramprate.com', 'https://www.linkedin.com/in/sainarendrakurmapu/', null, false, null),
-  ('Kimberly Dofredo', 'Admin, Executive Ops', 'admin@ramprate.com', 'https://www.linkedin.com/in/kimberly-dofredo/', '+1 (909) 235-9945', true, null)
+  ('Kimberly Dofredo', 'Admin, Executive Ops', 'kimberly@ramprate.com', 'https://www.linkedin.com/in/kimberly-dofredo/', '+1 (909) 235-9945', true, null)
 on conflict (email) do nothing;
 
 -- Bootstrap the first admin: create the user in Supabase Auth (Dashboard > Authentication > Add user),

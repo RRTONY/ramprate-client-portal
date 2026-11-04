@@ -188,5 +188,9 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   http(s)-only meeting links, security headers in `next.config.mjs`, audit log hides `@example.test`
   rows. **Gotcha:** `.env.test`'s E2E project was the same as the live one, so signed-in browser
   tests wrote ~520 rows into the live audit log. Point E2E_* at a separate staging project.
+- **2026-11-05:** Pre-launch review: Kim's team directory email is now kimberly@ramprate.com (she is the
+  admin contact, so client questions go there) and Sai is "Bookkeeper". Existing databases:
+  `supabase/upgrade-2026-11-05-team-data.sql`. **Gotcha:** `.env.test`'s `TEST_SUPABASE_URL` is still the
+  live project, so do not run `npm run test:rls` until it points at a real staging project.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.
