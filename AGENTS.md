@@ -192,5 +192,8 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   admin contact, so client questions go there) and Sai is "Bookkeeper". Existing databases:
   `supabase/upgrade-2026-11-05-team-data.sql`. **Gotcha:** `.env.test`'s `TEST_SUPABASE_URL` is still the
   live project, so do not run `npm run test:rls` until it points at a real staging project.
+- **2026-11-05:** No custom domain for now; the portal stays on the Netlify address for testing. When it
+  moves, update `NEXT_PUBLIC_SITE_URL` in Netlify plus the Site URL and Redirect URLs in Supabase, then
+  re-test the password reset email.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.
