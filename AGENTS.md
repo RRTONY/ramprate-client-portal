@@ -195,5 +195,8 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
 - **2026-11-05:** No custom domain for now; the portal stays on the Netlify address for testing. When it
   moves, update `NEXT_PUBLIC_SITE_URL` in Netlify plus the Site URL and Redirect URLs in Supabase, then
   re-test the password reset email.
+- **2026-11-05:** All six admin accounts stay admin after launch (owner's choice). Supabase is in East US,
+  near Netlify's default function region, so region distance is not a cause of slow saves. The
+  "ZZ Test Client" test data was deleted from the live database (logged as `client.delete`).
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.
