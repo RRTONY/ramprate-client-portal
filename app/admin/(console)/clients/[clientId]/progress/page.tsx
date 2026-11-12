@@ -124,12 +124,13 @@ export default async function AdminProgress({
                   <SubmitButton>Save</SubmitButton>
                 </div>
               </ActionForm>
-              <form
+              <ActionForm
+                compact
                 action={deleteProgress.bind(null, params.clientId, p.id)}
                 className="mt-3"
               >
                 <button className="btn-danger">Delete</button>
-              </form>
+              </ActionForm>
             </div>
           </details>
         ))}

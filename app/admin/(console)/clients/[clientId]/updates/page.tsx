@@ -83,7 +83,9 @@ export default async function AdminUpdates({
               )}
             </div>
             <div className="flex gap-2">
-              <form
+              <ActionForm
+                compact
+                savedText={u.published ? "Unpublished" : "Published"}
                 action={toggleUpdate.bind(
                   null,
                   params.clientId,
@@ -94,10 +96,13 @@ export default async function AdminUpdates({
                 <button className="btn-secondary !py-1.5 !text-xs">
                   {u.published ? "Unpublish" : "Publish"}
                 </button>
-              </form>
-              <form action={deleteUpdate.bind(null, params.clientId, u.id)}>
+              </ActionForm>
+              <ActionForm
+                compact
+                action={deleteUpdate.bind(null, params.clientId, u.id)}
+              >
                 <button className="btn-danger">Delete</button>
-              </form>
+              </ActionForm>
             </div>
           </div>
         ))}

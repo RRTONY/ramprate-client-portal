@@ -8,6 +8,7 @@ import { fmtDate, fmtSize } from "@/lib/format";
 import { DOC_CATEGORIES, type DocumentRow } from "@/lib/types";
 import { Notice, Pill } from "@/components/ui";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { ActionForm } from "@/components/ActionForm";
 
 const ERR: Record<string, string> = {
   nofile: "Choose a file to upload.",
@@ -73,7 +74,9 @@ export default async function AdminDocuments({
               >
                 Download
               </a>
-              <form
+              <ActionForm
+                compact
+                savedText={d.published ? "Hidden from client" : "Published"}
                 action={toggleDocument.bind(
                   null,
                   params.clientId,
@@ -84,10 +87,13 @@ export default async function AdminDocuments({
                 <button className="btn-secondary !py-1.5 !text-xs">
                   {d.published ? "Hide" : "Publish"}
                 </button>
-              </form>
-              <form action={deleteDocument.bind(null, params.clientId, d.id)}>
+              </ActionForm>
+              <ActionForm
+                compact
+                action={deleteDocument.bind(null, params.clientId, d.id)}
+              >
                 <button className="btn-danger">Delete</button>
-              </form>
+              </ActionForm>
             </div>
           </div>
         ))}

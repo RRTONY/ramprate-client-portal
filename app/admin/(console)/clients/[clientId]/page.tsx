@@ -6,6 +6,7 @@ import { requireStaff } from "@/lib/auth";
 import { Notice } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 import type { TeamMember } from "@/lib/types";
 
 export default async function AdminOverview({
@@ -74,7 +75,12 @@ export default async function AdminOverview({
             Last updated {fmtDate(client.last_updated_at)}
           </p>
         </section>
-        <form action={save} className="card space-y-4 lg:order-1 lg:col-span-2">
+        <ActionForm
+          action={save}
+          keepValues
+          savedText="Changes saved"
+          className="card space-y-4 lg:order-1 lg:col-span-2"
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="name">
@@ -275,7 +281,7 @@ export default async function AdminOverview({
             />
           </div>
           <SubmitButton>Save changes</SubmitButton>
-        </form>
+        </ActionForm>
       </div>
       {me.role === "admin" && (
         <details className="card max-w-5xl border-red-200">

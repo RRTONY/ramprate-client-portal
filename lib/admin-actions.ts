@@ -37,6 +37,7 @@ function safeHttpsUrl(v: string): string | null {
 const MAX_TITLE = 200;
 const MAX_TEXT = 5000;
 const SAVE_FAILED: ActionResult = { error: "That did not save. Please try again." };
+const DELETE_FAILED: ActionResult = { error: "That was not deleted. Please try again." };
 
 /** A friendly message for the first field over its limit. */
 function tooLong(fields: [label: string, value: string, max: number][]): ActionResult {
@@ -135,17 +136,33 @@ async function syncOwnerAndSpoc(clientId: string) {
       });
 }
 
-export async function updateClientAction(clientId: string, formData: FormData) {
-  await assertCanManage(clientId);
+export async function updateClientAction(
+  clientId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const name = s(formData, "name");
+  if (!name) return { error: "Please add the client name." };
+  const invalid = tooLong([
+    ["Client name", name, MAX_TITLE],
+    ["Status line", s(formData, "status"), MAX_TITLE],
+    ["Summary", s(formData, "summary"), MAX_TEXT],
+    ["Approach", s(formData, "approach"), MAX_TEXT],
+    ["Expectations", s(formData, "expectations"), MAX_TEXT],
+    ["Priorities", s(formData, "priorities"), MAX_TEXT],
+    ["Phases", s(formData, "phases"), MAX_TEXT],
+    ["Welcome note", s(formData, "welcome_note"), MAX_TEXT],
+  ]);
+  if (invalid) return invalid;
   const supabase = createClient();
   const priorities = s(formData, "priorities")
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-  await supabase
+  const { error } = await supabase
     .from("clients")
     .update({
-      name: s(formData, "name"),
+      name,
       status: s(formData, "status") || "Active",
       health: pick(
         s(formData, "health"),
@@ -176,14 +193,20 @@ export async function updateClientAction(clientId: string, formData: FormData) {
       spoc_id: orNull(s(formData, "spoc_id")),
     })
     .eq("id", clientId);
-  await syncOwnerAndSpoc(clientId);
-  await logEvent({
-    action: "client.update",
-    entity: "client",
-    entityId: clientId,
-    clientId,
-    detail: { health: s(formData, "health"), status: s(formData, "status") },
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    syncOwnerAndSpoc(clientId),
+    logEvent(
+      {
+        action: "client.update",
+        entity: "client",
+        entityId: clientId,
+        clientId,
+        detail: { health: s(formData, "health"), status: s(formData, "status") },
+      },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(`/portal/${clientId}`, "layout");
   revalidatePath(adminPath(clientId), "layout");
 }
@@ -270,19 +293,21 @@ export async function updateProgress(
   revalidatePath(`/portal/${clientId}`, "layout");
 }
 
-export async function deleteProgress(clientId: string, id: string) {
-  await assertCanManage(clientId);
-  await createClient()
+export async function deleteProgress(
+  clientId: string,
+  id: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("progress_items")
     .delete()
     .eq("id", id)
     .eq("client_id", clientId);
-  await logEvent({
-    action: "progress.delete",
-    entity: "progress_item",
-    entityId: id,
-    clientId,
-  });
+  if (error) return DELETE_FAILED;
+  await logEvent(
+    { action: "progress.delete", entity: "progress_item", entityId: id, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/progress"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -347,37 +372,45 @@ export async function toggleUpdate(
   clientId: string,
   id: string,
   published: boolean,
-) {
-  await assertCanManage(clientId);
-  await createClient()
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("updates")
     .update({ published })
     .eq("id", id)
     .eq("client_id", clientId);
-  await touch(clientId);
-  await logEvent({
-    action: published ? "update.publish" : "update.unpublish",
-    entity: "update",
-    entityId: id,
-    clientId,
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      {
+        action: published ? "update.publish" : "update.unpublish",
+        entity: "update",
+        entityId: id,
+        clientId,
+      },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/updates"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
 
-export async function deleteUpdate(clientId: string, id: string) {
-  await assertCanManage(clientId);
-  await createClient()
+export async function deleteUpdate(
+  clientId: string,
+  id: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("updates")
     .delete()
     .eq("id", id)
     .eq("client_id", clientId);
-  await logEvent({
-    action: "update.delete",
-    entity: "update",
-    entityId: id,
-    clientId,
-  });
+  if (error) return DELETE_FAILED;
+  await logEvent(
+    { action: "update.delete", entity: "update", entityId: id, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/updates"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -457,19 +490,21 @@ export async function updateMeetingNotes(
   revalidatePath(`/portal/${clientId}`, "layout");
 }
 
-export async function deleteMeeting(clientId: string, id: string) {
-  await assertCanManage(clientId);
-  await createClient()
+export async function deleteMeeting(
+  clientId: string,
+  id: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("meetings")
     .delete()
     .eq("id", id)
     .eq("client_id", clientId);
-  await logEvent({
-    action: "meeting.delete",
-    entity: "meeting",
-    entityId: id,
-    clientId,
-  });
+  if (error) return DELETE_FAILED;
+  await logEvent(
+    { action: "meeting.delete", entity: "meeting", entityId: id, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/meetings"));
   revalidatePath(`/portal/${clientId}`, "layout");
 }
@@ -551,26 +586,35 @@ export async function toggleDocument(
   clientId: string,
   id: string,
   published: boolean,
-) {
-  await assertCanManage(clientId);
-  await createClient()
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("documents")
     .update({ published })
     .eq("id", id)
     .eq("client_id", clientId);
-  await touch(clientId);
-  await logEvent({
-    action: published ? "document.publish" : "document.hide",
-    entity: "document",
-    entityId: id,
-    clientId,
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      {
+        action: published ? "document.publish" : "document.hide",
+        entity: "document",
+        entityId: id,
+        clientId,
+      },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/documents"));
   revalidatePath(`/portal/${clientId}/documents`);
 }
 
-export async function deleteDocument(clientId: string, id: string) {
-  await assertCanManage(clientId);
+export async function deleteDocument(
+  clientId: string,
+  id: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
   const supabase = createClient();
   const { data: doc } = await supabase
     .from("documents")
@@ -579,15 +623,21 @@ export async function deleteDocument(clientId: string, id: string) {
     .eq("client_id", clientId)
     .single();
   if (doc) {
-    await supabase.storage.from("client-documents").remove([doc.storage_path]);
-    await supabase.from("documents").delete().eq("id", id);
-    await logEvent({
-      action: "document.delete",
-      entity: "document",
-      entityId: id,
-      clientId,
-      detail: { path: doc.storage_path },
-    });
+    const { error } = await supabase.from("documents").delete().eq("id", id);
+    if (error) return DELETE_FAILED;
+    await Promise.all([
+      supabase.storage.from("client-documents").remove([doc.storage_path]),
+      logEvent(
+        {
+          action: "document.delete",
+          entity: "document",
+          entityId: id,
+          clientId,
+          detail: { path: doc.storage_path },
+        },
+        actorOf(profile),
+      ),
+    ]);
   }
   revalidatePath(adminPath(clientId, "/documents"));
   revalidatePath(`/portal/${clientId}/documents`);
@@ -597,11 +647,16 @@ export async function deleteDocument(clientId: string, id: string) {
 export async function addClientTeamMember(
   clientId: string,
   formData: FormData,
-) {
-  await assertCanManage(clientId);
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
   const memberId = s(formData, "team_member_id");
-  if (!memberId) return;
-  await createClient()
+  if (!memberId) return { error: "Please choose a person." };
+  const invalid = tooLong([
+    ["Role", s(formData, "engagement_role"), MAX_TITLE],
+    ["Contact for", s(formData, "contact_for"), MAX_TITLE],
+  ]);
+  if (invalid) return invalid;
+  const { error } = await createClient()
     .from("client_team")
     .upsert(
       {
@@ -612,30 +667,38 @@ export async function addClientTeamMember(
       },
       { onConflict: "client_id,team_member_id" },
     );
-  await touch(clientId);
-  await logEvent({
-    action: "client_team.save",
-    entity: "client_team",
-    clientId,
-    detail: { team_member_id: memberId },
-  });
+  if (error) return SAVE_FAILED;
+  await Promise.all([
+    touch(clientId),
+    logEvent(
+      {
+        action: "client_team.save",
+        entity: "client_team",
+        clientId,
+        detail: { team_member_id: memberId },
+      },
+      actorOf(profile),
+    ),
+  ]);
   revalidatePath(adminPath(clientId, "/team"));
   revalidatePath(`/portal/${clientId}/team`);
 }
 
-export async function removeClientTeamMember(clientId: string, rowId: string) {
-  await assertCanManage(clientId);
-  await createClient()
+export async function removeClientTeamMember(
+  clientId: string,
+  rowId: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
+  const { error } = await createClient()
     .from("client_team")
     .delete()
     .eq("id", rowId)
     .eq("client_id", clientId);
-  await logEvent({
-    action: "client_team.remove",
-    entity: "client_team",
-    entityId: rowId,
-    clientId,
-  });
+  if (error) return DELETE_FAILED;
+  await logEvent(
+    { action: "client_team.remove", entity: "client_team", entityId: rowId, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/team"));
   revalidatePath(`/portal/${clientId}/team`);
 }
@@ -702,8 +765,11 @@ export async function inviteClientUser(clientId: string, formData: FormData) {
   redirect(adminPath(clientId, "/access?ok=added"));
 }
 
-export async function revokeClientUser(clientId: string, userId: string) {
-  await assertCanManage(clientId);
+export async function revokeClientUser(
+  clientId: string,
+  userId: string,
+): Promise<ActionResult> {
+  const profile = await assertCanManage(clientId);
   const svc = createServiceClient();
   // Only ever act on a client-role user belonging to this client.
   const { data: p } = await svc
@@ -714,45 +780,48 @@ export async function revokeClientUser(clientId: string, userId: string) {
     .eq("client_id", clientId)
     .maybeSingle();
   if (!p) return;
-  await svc.auth.admin.deleteUser(userId);
-  await logEvent({
-    action: "client_user.revoke",
-    entity: "profile",
-    entityId: userId,
-    clientId,
-  });
+  const { error } = await svc.auth.admin.deleteUser(userId);
+  if (error) return { error: "That sign-in was not removed. Please try again." };
+  await logEvent(
+    { action: "client_user.revoke", entity: "profile", entityId: userId, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/access"));
 }
 
-export async function assignStaff(clientId: string, formData: FormData) {
-  await requireAdmin();
+export async function assignStaff(
+  clientId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const profile = await requireAdmin();
   const userId = s(formData, "user_id");
-  if (userId)
-    await createClient()
-      .from("staff_clients")
-      .upsert({ user_id: userId, client_id: clientId });
-  await logEvent({
-    action: "staff.assign",
-    entity: "staff_clients",
-    entityId: userId,
-    clientId,
-  });
+  if (!userId) return { error: "Please choose a staff member." };
+  const { error } = await createClient()
+    .from("staff_clients")
+    .upsert({ user_id: userId, client_id: clientId });
+  if (error) return SAVE_FAILED;
+  await logEvent(
+    { action: "staff.assign", entity: "staff_clients", entityId: userId, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/access"));
 }
 
-export async function unassignStaff(clientId: string, userId: string) {
-  await requireAdmin();
-  await createClient()
+export async function unassignStaff(
+  clientId: string,
+  userId: string,
+): Promise<ActionResult> {
+  const profile = await requireAdmin();
+  const { error } = await createClient()
     .from("staff_clients")
     .delete()
     .eq("user_id", userId)
     .eq("client_id", clientId);
-  await logEvent({
-    action: "staff.unassign",
-    entity: "staff_clients",
-    entityId: userId,
-    clientId,
-  });
+  if (error) return DELETE_FAILED;
+  await logEvent(
+    { action: "staff.unassign", entity: "staff_clients", entityId: userId, clientId },
+    actorOf(profile),
+  );
   revalidatePath(adminPath(clientId, "/access"));
 }
 
@@ -863,9 +932,9 @@ export async function resetUserPassword(userId: string, back: string) {
   redirect(`${to}?ok=reset`);
 }
 
-export async function removeStaffUser(userId: string) {
+export async function removeStaffUser(userId: string): Promise<ActionResult> {
   const me = await requireAdmin();
-  if (userId === me.id) return; // never lock yourself out
+  if (userId === me.id) return { error: "You cannot remove your own account." };
   const svc = createServiceClient();
   const { data: p } = await svc
     .from("profiles")
@@ -874,13 +943,12 @@ export async function removeStaffUser(userId: string) {
     .in("role", ["staff", "admin"])
     .maybeSingle();
   if (!p) return;
-  await svc.auth.admin.deleteUser(userId);
-  await logEvent({
-    action: "staff_user.remove",
-    entity: "profile",
-    entityId: userId,
-    detail: { email: p.email },
-  });
+  const { error } = await svc.auth.admin.deleteUser(userId);
+  if (error) return { error: "That account was not removed. Please try again." };
+  await logEvent(
+    { action: "staff_user.remove", entity: "profile", entityId: userId, detail: { email: p.email } },
+    actorOf(me),
+  );
   revalidatePath("/admin/users");
 }
 
@@ -922,14 +990,15 @@ export async function deleteClientAction(clientId: string, formData: FormData) {
 }
 
 /** Each person controls their own email preference. */
-export async function setNotifyPreference(formData: FormData) {
+export async function setNotifyPreference(formData: FormData): Promise<ActionResult> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase.rpc("set_my_notify", {
+  if (!user) return { error: "Please sign in again." };
+  const { error } = await supabase.rpc("set_my_notify", {
     v: formData.get("notify_email") === "on",
   });
+  if (error) return SAVE_FAILED;
   revalidatePath("/", "layout");
 }

@@ -4,6 +4,7 @@ import { inviteStaffUser, removeStaffUser } from "@/lib/admin-actions";
 import { Notice, PageTitle, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { AccountEditor } from "@/components/AccountEditor";
+import { ActionForm } from "@/components/ActionForm";
 import { Modal, iconButtonDanger } from "@/components/Modal";
 import { FiTrash2, FiUserPlus } from "react-icons/fi";
 import type { Profile } from "@/lib/types";
@@ -96,7 +97,7 @@ export default async function StaffUsers({
                 {u.role}
               </Pill>
               <AccountEditor user={u} back="/admin/users" />
-              <form action={removeStaffUser.bind(null, u.id)}>
+              <ActionForm compact action={removeStaffUser.bind(null, u.id)}>
                 <button
                   className={iconButtonDanger}
                   aria-label={`Remove ${u.full_name || u.email}`}
@@ -104,7 +105,7 @@ export default async function StaffUsers({
                 >
                   <FiTrash2 aria-hidden className="h-4 w-4" />
                 </button>
-              </form>
+              </ActionForm>
             </div>
           </div>
         ))}

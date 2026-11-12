@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin-actions";
 import { Notice, Pill } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 import { AccountEditor } from "@/components/AccountEditor";
 import { Modal, iconButtonDanger } from "@/components/Modal";
 import { FiTrash2, FiUserMinus, FiUserPlus } from "react-icons/fi";
@@ -141,7 +142,10 @@ export default async function AdminAccess({
                 {me.role === "admin" && (
                   <AccountEditor user={u} back={`/admin/clients/${params.clientId}/access`} />
                 )}
-                <form action={revokeClientUser.bind(null, params.clientId, u.id)}>
+                <ActionForm
+                  compact
+                  action={revokeClientUser.bind(null, params.clientId, u.id)}
+                >
                   <button
                     className={iconButtonDanger}
                     aria-label={`Remove access for ${u.full_name || u.email}`}
@@ -149,7 +153,7 @@ export default async function AdminAccess({
                   >
                     <FiTrash2 aria-hidden className="h-4 w-4" />
                   </button>
-                </form>
+                </ActionForm>
               </div>
             </div>
           ))}
@@ -159,7 +163,12 @@ export default async function AdminAccess({
       {me.role === "admin" && (
         <section>
           <h2 className="h-section">RampRate staff who can edit this portal</h2>
-          <form action={assign} className="card mb-4 flex gap-3">
+          <ActionForm
+            action={assign}
+            compact
+            savedText="Assigned"
+            className="card mb-4 flex gap-3"
+          >
             <select name="user_id" required aria-label="Staff user" className="input">
               <option value="">Choose a staff user...</option>
               {(
@@ -175,7 +184,7 @@ export default async function AdminAccess({
               ))}
             </select>
             <SubmitButton pendingText="Adding...">Assign</SubmitButton>
-          </form>
+          </ActionForm>
           <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
             {staffRows.length === 0 && (
               <div className="p-5 text-sm text-slate-500">
@@ -190,7 +199,8 @@ export default async function AdminAccess({
                 <span className="font-semibold">
                   {r.profiles?.full_name || r.profiles?.email}
                 </span>
-                <form
+                <ActionForm
+                  compact
                   action={unassignStaff.bind(null, params.clientId, r.user_id)}
                 >
                   <button
@@ -200,7 +210,7 @@ export default async function AdminAccess({
                   >
                     <FiUserMinus aria-hidden className="h-4 w-4" />
                   </button>
-                </form>
+                </ActionForm>
               </div>
             ))}
           </div>

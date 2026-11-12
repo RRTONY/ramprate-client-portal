@@ -242,6 +242,89 @@ describe("updateClientAction", () => {
   });
 });
 
+describe("save results shown to the person (Saved or an error)", () => {
+  beforeEach(() => {
+    seed("clients", { id: CLIENT_A, name: "Acme" });
+    signIn("admin");
+  });
+
+  it("client overview: success returns nothing, so the form shows Saved", async () => {
+    assert.equal(await actions.updateClientAction(CLIENT_A, form({ name: "Acme" })), undefined);
+  });
+
+  it("client overview: a database failure returns an error and logs nothing", async () => {
+    on("clients", "update", { data: null, error: { message: "RLS" } });
+    const res = await actions.updateClientAction(CLIENT_A, form({ name: "Changed" }));
+    assert.ok(res?.error);
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("client overview: a blank name or over-long text is refused before saving", async () => {
+    assert.match((await actions.updateClientAction(CLIENT_A, form({ name: " " })))!.error, /client name/);
+    const res = await actions.updateClientAction(
+      CLIENT_A,
+      form({ name: "Acme", summary: "x".repeat(5001) }),
+    );
+    assert.match(res!.error, /Summary is too long/);
+    assert.equal(callsTo("clients", "update").length, 0);
+  });
+
+  it("publish switches and deletes report a failure instead of logging it as done", async () => {
+    on("updates", "update", { data: null, error: { message: "x" } });
+    on("meetings", "delete", { data: null, error: { message: "x" } });
+    on("staff_clients", "upsert", { data: null, error: { message: "x" } });
+    assert.ok((await actions.toggleUpdate(CLIENT_A, "u1", true))?.error);
+    assert.ok((await actions.deleteMeeting(CLIENT_A, "m1"))?.error);
+    assert.ok((await actions.assignStaff(CLIENT_A, form({ user_id: "s1" })))?.error);
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("hiding a document that fails to save returns an error", async () => {
+    on("documents", "update", { data: null, error: { message: "x" } });
+    assert.ok((await actions.toggleDocument(CLIENT_A, "d1", false))?.error);
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("a document whose database row cannot be deleted keeps its file", async () => {
+    seed("documents", { id: "d1", client_id: CLIENT_A, storage_path: `${CLIENT_A}/a.pdf` });
+    on("documents", "delete", { data: null, error: { message: "x" } });
+    assert.ok((await actions.deleteDocument(CLIENT_A, "d1"))?.error);
+    assert.deepEqual(db.storageRemoved, [], "file not removed");
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("removing a team member or staff assignment reports a failure", async () => {
+    on("client_team", "delete", { data: null, error: { message: "x" } });
+    on("staff_clients", "delete", { data: null, error: { message: "x" } });
+    on("progress_items", "delete", { data: null, error: { message: "x" } });
+    on("updates", "delete", { data: null, error: { message: "x" } });
+    assert.ok((await actions.removeClientTeamMember(CLIENT_A, "r1"))?.error);
+    assert.ok((await actions.unassignStaff(CLIENT_A, "s1"))?.error);
+    assert.ok((await actions.deleteProgress(CLIENT_A, "p1"))?.error);
+    assert.ok((await actions.deleteUpdate(CLIENT_A, "u1"))?.error);
+    assert.deepEqual(auditActions(), []);
+  });
+
+  it("successful switches and deletes return nothing, so the page shows Saved", async () => {
+    seed("updates", { id: "u1", client_id: CLIENT_A, published: false });
+    assert.equal(await actions.toggleUpdate(CLIENT_A, "u1", true), undefined);
+    assert.equal(await actions.deleteUpdate(CLIENT_A, "u1"), undefined);
+    assert.deepEqual(auditActions(), ["update.publish", "update.delete"]);
+  });
+
+  it("an admin trying to remove their own account is told why", async () => {
+    const me = signIn("admin");
+    const res = await actions.removeStaffUser(me.id as string);
+    assert.match(res!.error, /your own account/);
+    assert.deepEqual(db.deletedUsers, []);
+  });
+
+  it("asks for a choice when none was made", async () => {
+    assert.ok((await actions.addClientTeamMember(CLIENT_A, form({})))?.error);
+    assert.ok((await actions.assignStaff(CLIENT_A, form({})))?.error);
+  });
+});
+
 describe("deleteClientAction", () => {
   beforeEach(() => {
     seed("clients", { id: CLIENT_A, name: "Acme" });
@@ -902,8 +985,8 @@ describe("setNotifyPreference", () => {
     assert.equal(callsTo("profiles", "update").length, 0);
   });
 
-  it("does nothing when signed out", async () => {
-    await actions.setNotifyPreference(form({ notify_email: "on" }));
+  it("does nothing when signed out, and says so", async () => {
+    assert.ok((await actions.setNotifyPreference(form({ notify_email: "on" })))?.error);
     assert.deepEqual(db.rpcs, []);
   });
 });

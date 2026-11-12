@@ -97,12 +97,13 @@ export default async function AdminMeetings({
                 </div>
                 <SubmitButton>Save</SubmitButton>
               </ActionForm>
-              <form
+              <ActionForm
+                compact
                 action={deleteMeeting.bind(null, params.clientId, m.id)}
                 className="mt-3"
               >
                 <button className="btn-danger">Delete</button>
-              </form>
+              </ActionForm>
             </div>
           </details>
         ))}

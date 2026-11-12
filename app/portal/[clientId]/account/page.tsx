@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { setNotifyPreference } from "@/lib/admin-actions";
 import { PageTitle } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 
 export default async function Account() {
   const profile = await requireProfile();
@@ -35,7 +36,12 @@ export default async function Account() {
         </section>
         <section className="card">
           <h2 className="h-section">Email notifications</h2>
-          <form action={setNotifyPreference} className="space-y-3">
+          <ActionForm
+            action={setNotifyPreference}
+            keepValues
+            savedText="Preference saved"
+            className="space-y-3"
+          >
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -49,7 +55,7 @@ export default async function Account() {
               </span>
             </label>
             <SubmitButton>Save preference</SubmitButton>
-          </form>
+          </ActionForm>
           <p className="mt-3 text-xs text-slate-500">
             Replies to your questions are always emailed, whatever you choose
             here.

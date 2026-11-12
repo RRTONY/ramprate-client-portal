@@ -91,6 +91,9 @@ working rules but has its own stack, hosting and security model. Setup and featu
   meeting, update, progress item, reply) use `components/ActionForm.tsx` instead: the action returns
   `{ error }` or nothing, and the form clears and shows "Saved" itself (a redirect to the same page
   would leave the old values in the fields). Check the insert's `error` before logging success.
+  Every form that saves, switches or deletes on the same page uses `ActionForm` (edit forms pass
+  `keepValues`; single icon-button forms pass `compact`, which shows a failure as a pop-up), so
+  the person always sees "Saved" or an error. A plain `<form action>` shows neither.
 - **Speed:** each Supabase call is a network trip. Pass `actorOf(profile)` to `logEvent()` when the
   profile is already loaded, and run independent steps (touch, audit row, email) with `Promise.all`.
 - Free-text limits: titles 200 characters, long text 5,000, with a friendly error. Meeting
@@ -198,5 +201,11 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
 - **2026-11-05:** All six admin accounts stay admin after launch (owner's choice). Supabase is in East US,
   near Netlify's default function region, so region distance is not a cause of slow saves. The
   "ZZ Test Client" test data was deleted from the live database (logged as `client.delete`).
+- **2026-11-13:** Reviewer saw no "Saved" message: the client overview save, team, staff assign,
+  email preference, publish switches and delete buttons were plain forms with no feedback, and
+  their actions ignored database errors. All now use `ActionForm`, return `{ error }` on failure,
+  and log to the audit trail only after the change really happened. `ActionForm` also shows an
+  error if the connection drops. Live headers (HSTS, X-Frame-Options, nosniff, Referrer-Policy,
+  CSP) checked on the Netlify address. Tests use Node's built-in runner, not Jest.
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.

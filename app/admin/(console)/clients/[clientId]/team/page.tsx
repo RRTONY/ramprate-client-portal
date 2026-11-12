@@ -5,6 +5,7 @@ import {
   removeClientTeamMember,
 } from "@/lib/admin-actions";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActionForm } from "@/components/ActionForm";
 import type { TeamMember } from "@/lib/types";
 
 export default async function AdminTeam({
@@ -25,7 +26,7 @@ export default async function AdminTeam({
 
   return (
     <div className="space-y-6">
-      <form action={add} className="card grid gap-3 sm:grid-cols-6">
+      <ActionForm action={add} className="card grid gap-3 sm:grid-cols-6">
         <h2 className="h-section sm:col-span-6 !mb-0">
           Add or update a team member on this engagement
         </h2>
@@ -63,7 +64,7 @@ export default async function AdminTeam({
           Set the engagement owner and SPOC on the Overview tab. They are added
           here automatically.
         </p>
-      </form>
+      </ActionForm>
 
       <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
         {team.map((t) => (
@@ -82,11 +83,12 @@ export default async function AdminTeam({
                 </div>
               )}
             </div>
-            <form
+            <ActionForm
+              compact
               action={removeClientTeamMember.bind(null, params.clientId, t.id)}
             >
               <button className="btn-danger">Remove</button>
-            </form>
+            </ActionForm>
           </div>
         ))}
       </div>
