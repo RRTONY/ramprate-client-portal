@@ -171,6 +171,20 @@ describe("weekly digest", () => {
     assert.ok(!mail.html.includes("Old news"));
     assert.ok(mail.html.includes("Send invoices (by Nov 2, 2026)"));
     assert.ok(mail.html.includes("Weekly sync: Wed, Oct 28, 2026"));
+    const run = table("audit_log").filter((r) => r.action === "digest.run");
+    assert.equal(run.length, 1, "each run is recorded");
+    assert.deepEqual(run[0].detail, { clientsChecked: 1, digestsSent: 1 });
+  });
+
+  it("records a run even in a week with nobody to email", async () => {
+    const res = await call("Bearer s3cret");
+    assert.deepEqual(await res.json(), { ok: true, digestsSent: 0 });
+    assert.equal(table("audit_log").filter((r) => r.action === "digest.run").length, 1);
+  });
+
+  it("writes nothing to the audit log when the secret is wrong", async () => {
+    await call("Bearer wrong");
+    assert.equal(table("audit_log").length, 0);
   });
 
   it("skips clients with nothing new", async () => {

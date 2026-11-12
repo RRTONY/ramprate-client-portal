@@ -71,5 +71,11 @@ export async function GET(request: NextRequest) {
     });
     if (res.sent) sent++;
   }
+  // One row per run, so the audit page proves the schedule fired even in a week with nothing to send.
+  await svc.from("audit_log").insert({
+    action: "digest.run",
+    entity: "digest",
+    detail: { clientsChecked: clients?.length ?? 0, digestsSent: sent },
+  });
   return NextResponse.json({ ok: true, digestsSent: sent });
 }

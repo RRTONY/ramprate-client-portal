@@ -207,5 +207,8 @@ focus, contrast), no debug logs or dead code. Severity words: **Must fix**, **Sh
   and log to the audit trail only after the change really happened. `ActionForm` also shows an
   error if the connection drops. Live headers (HSTS, X-Frame-Options, nosniff, Referrer-Policy,
   CSP) checked on the Netlify address. Tests use Node's built-in runner, not Jest.
+  Email: ramprate.com is verified in Resend (DKIM, SPF on `send.`, DMARC `p=none`); a test from
+  `portal@ramprate.com` reached web.master's Gmail inbox, not spam. The repo's main branch is
+  `master` (there is no `main`).
 - Portal accent is purple (`brand-500` `#7E32D4`), not the website's gold. Kept as the package author's
   choice; ask before changing.
